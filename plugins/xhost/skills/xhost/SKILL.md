@@ -22,9 +22,14 @@ xhost is a hosting platform for static sites and dynamic applications. You push 
 
 ## Prerequisites
 
-Two environment variables control xhost access:
+**Check for xhost MCP tools first.** This plugin bundles the xhost MCP server, so tools like `list_apps`, `create_app`, `commit_files`, and `deploy` (tool names contain `xhost`) are usually available directly. If they are:
 
-- **XHOST_TOKEN** — Your API token (starts with `xh_`). Required for all authenticated operations.
+- **Prefer the MCP tools for all API operations** — no token setup needed. Auth is handled by OAuth: if a tool call reports it's unauthenticated, tell the user to run `/mcp`, select the **xhost** server, and choose **Authenticate** (a browser opens for Google sign-in and a one-click approval; on first sign-in they pick a username).
+- A token (`XHOST_TOKEN`) is only needed for the **fallback paths**: pushing to the git remote directly or calling the raw HTTP API with curl.
+
+If MCP tools are NOT available, fall back to the raw HTTP API. Two environment variables control raw-API access:
+
+- **XHOST_TOKEN** — Your API token (starts with `xh_`). Required for all raw-API operations and for the git remote.
 - **XHOST_API_URL** — The API base URL. Defaults to `https://api.xhostd.com`.
 
 Check if they are set:
@@ -39,29 +44,24 @@ If the token is not set, guide the user through signup or login (see the Signup 
 
 ## Signup — Create a New Account
 
-Create a new xhost account without leaving Claude Code.
+Account creation happens in a browser because Google sign-in is required.
 
-1. Ask the user for their **invite code** (format: `xi_...`). Every new account requires one.
-2. Ask for a **username**. Rules: lowercase letters, digits, hyphens, 1-40 chars, no leading/trailing hyphen.
-3. Optionally ask for an **email** address.
-4. Call the signup endpoint:
-   ```
-   curl -sf -X POST "${XHOST_API_URL:-https://api.xhostd.com}/admin/signup" \
-     -H "Content-Type: application/json" \
-     -d '{"invite":"<invite_code>","username":"<username>","email":"<email_or_null>"}'
-   ```
-5. On success: extract the `token` field (`xh_...`) and tell the user:
-   - `export XHOST_TOKEN=xh_...` (session)
-   - Add to shell profile for persistence
-6. Common errors:
-   - `"invite is invalid or already used"` — wrong or consumed invite
-   - `"username is already taken"` — pick a different username
+- **MCP path (preferred):** tell the user to run `/mcp` → **xhost** → **Authenticate**. The browser flow covers signup too: Google sign-in, username selection on first sign-in, then a one-click approval. No token to copy.
+- **Token path (for git pushes / raw curl):**
+  1. Send the user to <https://xhostd.com> and tell them to click **Sign in with Google**.
+  2. On first sign-in they pick a username (lowercase, digits, hyphens, 1–40 chars).
+  3. Then send them to <https://xhostd.com/tokens?label=claude-code> and tell them to click **Create token** and copy the `xh_...` plaintext that's shown once.
+  4. They give you the token; tell them:
+     - `export XHOST_TOKEN=xh_...` (session)
+     - Add to shell profile for persistence
+
+If any raw API call later returns 401, the token is dead. Send the user to the same URL — <https://xhostd.com/tokens?label=claude-code> — to mint a new one, and have them paste it back. (For MCP tools, a 401 just means re-running `/mcp` → Authenticate.)
 
 ---
 
 ## Login — Configure an Existing Token
 
-The user already has an xhost account and token.
+The user already has an xhost account and wants to use the raw API or git remote. (If they only need MCP tools, `/mcp` → Authenticate is enough — skip this.)
 
 1. Ask the user for their `xh_*` token.
 2. Validate by calling:
@@ -75,6 +75,8 @@ The user already has an xhost account and token.
 ---
 
 ## Init — Create an App and Connect This Project
+
+> **MCP shortcut:** if the xhost MCP tools are available, use `create_app` → `commit_files` → `deploy` instead of the raw-API steps below — no token or git remote required. The steps below are the raw-API/git fallback.
 
 Set up a new xhost app linked to the current git repository.
 
@@ -171,6 +173,8 @@ Commit, push, and trigger a deploy.
      -H "Content-Type: application/json" \
      -d '{"sha":"<SHA>"}'
    ```
+   Body accepts `{sha?, ref?}` (at least one required; both means `sha` wins).
+   `{"ref":"master"}` works too — xhostd resolves the branch to its current HEAD.
 8. **Check deploy log** (optional):
    ```
    curl -sf "${XHOST_API_URL:-https://api.xhostd.com}/apps/<app_id>/channels/<channel_id>/logs?deploy=<deploy_id>" \
@@ -187,23 +191,21 @@ Push the current branch and get a preview URL.
 1. **Check XHOST_TOKEN** and **xhost remote** — same as Deploy.
 2. **Get current branch**. If on `master`, warn: "This deploys to production. Consider creating a feature branch first." Ask if they want to continue.
 3. **Find the app** via `GET /apps`, match against xhost remote.
-4. **Check for a `branch:*` wildcard channel**:
+4. **Check for an existing channel bound to this branch**:
    ```
    curl -sf "${XHOST_API_URL:-https://api.xhostd.com}/apps/<app_id>/channels" \
      -H "Authorization: Bearer $XHOST_TOKEN"
    ```
-5. If none exists, **create one**:
+5. If none exists, **create one for the branch**:
    ```
    curl -sf -X POST "${XHOST_API_URL:-https://api.xhostd.com}/apps/<app_id>/channels" \
      -H "Authorization: Bearer $XHOST_TOKEN" \
      -H "Content-Type: application/json" \
-     -d '{"name":"wildcard","git_ref_binding":"branch:*"}'
+     -d '{"name":"<branch>","git_ref_binding":"branch:<branch>"}'
    ```
-6. **Commit, push the branch, get SHA, trigger deploy** (same as Deploy but with the branch name instead of master).
-7. **Wait ~5s**, then list channels to find the new `preview-*` channel and its hostname.
+6. **Commit, push the branch, then trigger deploy** with `{"ref":"<branch>"}` (xhostd resolves HEAD) or `{"sha":"<SHA>"}`.
+7. The channel's hostname is `<branch>-<app>-<user>.<domain>`.
 8. Report: **"Preview deployed! URL: https://\<preview_hostname\>"**
-
-Preview channels are cleaned up automatically when the branch is deleted from git.
 
 ---
 
@@ -233,6 +235,7 @@ Use these across all operations:
 - **Two-step deploy**: push stores code; `POST /apps/{id}/channels/{id}/deploy` triggers the build
 - **DNS label rules**: `^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`, max 40 chars
 - **Reserved prefixes**: `git`, `api`, `www`, `admin`, `preview`, `staging`
+- **Postgres for free**: every channel gets `DATABASE_URL` in its env automatically. Don't ask the user for connection strings; read `DATABASE_URL` from `process.env` (or equivalent) and let migrations run in `install.sh`. Reserved env keys (don't try to set): `DATABASE_URL`, `DATABASE_HOST`, `DATABASE_PASSWORD`.
 
 ## References
 

@@ -1,6 +1,6 @@
 # xhost SDK
 
-Claude Code plugin for [xhost](https://xhostd.com) — deploy static sites and dynamic applications with a single token. Push code, get HTTPS URLs.
+Claude Code plugin for [xhost](https://xhostd.com) — deploy static sites and dynamic applications. Push code, get HTTPS URLs.
 
 ## Install
 
@@ -9,11 +9,17 @@ Claude Code plugin for [xhost](https://xhostd.com) — deploy static sites and d
 /plugin install xhost@xhost-sdk
 ```
 
+Installing the plugin registers both the xhost skill and the remote MCP server (`https://mcp.xhostd.com/mcp/`).
+
 After installing, reload plugins in your current session:
 
 ```
 /reload-plugins
 ```
+
+## Connect
+
+Run `/mcp`, select **xhost**, and choose **Authenticate**. Your browser opens for Google sign-in — no token needed.
 
 ## Usage
 
@@ -49,8 +55,8 @@ The single `/xhost` skill handles account setup, app creation, deploys, previews
 
 ## Requirements
 
-- A valid xhost token (`XHOST_TOKEN` env var)
 - Git installed locally
+- An API token (from [xhostd.com/tokens](https://xhostd.com/tokens)) only if you push over git or call the API with raw curl — the MCP connection itself uses OAuth, no token
 
 ## License
 

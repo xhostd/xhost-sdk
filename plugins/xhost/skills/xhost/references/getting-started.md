@@ -2,46 +2,22 @@
 
 This guide walks you through setting up your first static site on xhost, from account creation to live deployment.
 
-## 1. Get an Invite Code
+## 1. Sign Up
 
-Every new xhost account requires an invite code (format: `xi_...`). Ask your team admin or the xhost operator to generate one for you. Admins create invites via the API:
-
-```bash
-curl -sf -X POST "${XHOST_API_URL}/admin/invites" \
-  -H "Authorization: Bearer <admin_token>"
-```
-
-## 2. Sign Up
-
-You can sign up in two ways:
-
-**Option A: Using the `/xhost:signup` command in Claude Code**
-
-Type `/xhost:signup` and follow the prompts. You will be asked for your invite code, a username, and optionally an email.
-
-**Option B: Using curl directly**
-
-```bash
-curl -sf -X POST "${XHOST_API_URL:-https://api.xhostd.com}/admin/signup" \
-  -H "Content-Type: application/json" \
-  -d '{"invite":"xi_your_code","username":"your-username","email":"you@example.com"}'
-```
+Open <https://xhostd.com> and click **Sign in with Google**. On first sign-in you'll be asked to pick a **username** — that becomes part of your project URLs (e.g. `my-site-yourname.xhostd.com`).
 
 Username rules:
 - Lowercase letters, digits, and hyphens only
 - 1 to 40 characters
 - Cannot start or end with a hyphen
 
-On success, the response includes your API token:
-```json
-{
-  "user_id": "...",
-  "username": "your-username",
-  "token": "xh_your_token_here"
-}
-```
+## 2. Connect via MCP (recommended) or Create an API Token
 
-## 3. Set Your Token
+**MCP (recommended for Claude Code):** the xhost plugin bundles the MCP server, so the tools are already registered. Run `/mcp`, select **xhost**, choose **Authenticate** — a browser opens for Google sign-in and a one-click approval. Done; no token to copy. (Without the plugin: `claude mcp add --transport http xhost https://mcp.xhostd.com/mcp/` first.) The signup from step 1 happens inside this flow too if you haven't done it yet.
+
+**API token (needed for git pushes and raw curl):** after signing in you land on your dashboard. Click **Create token**, give it a label (e.g. `claude-code`), and copy the `xh_...` plaintext shown once.
+
+## 3. Set Your Token (token path only)
 
 Save the token so xhost commands can authenticate:
 
@@ -183,9 +159,6 @@ Run `export XHOST_TOKEN=xh_...` with your token. For persistence, add it to your
 
 **"XHOST_API_URL not set"**
 Run `export XHOST_API_URL=https://api.xhostd.com` (or your instance URL).
-
-**"invite is invalid or already used"**
-The invite code was already consumed or is incorrect. Ask for a new one.
 
 **"username is already taken"**
 Choose a different username. Usernames are globally unique.

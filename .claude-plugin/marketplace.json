@@ -7,8 +7,8 @@
     {
       "name": "xhost",
       "source": "./plugins/xhost",
-      "description": "Deploy static sites and dynamic applications with xhost — push code, get HTTPS URLs",
-      "version": "0.2.1",
+      "description": "Deploy static sites and dynamic applications with xhost. Push code, get HTTPS URLs.",
+      "version": "0.3.0",
       "author": {
         "name": "Yair Lifshitz"
       }

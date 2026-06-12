@@ -6,57 +6,7 @@ All authenticated endpoints require the header: `Authorization: Bearer <XHOST_TO
 
 All error responses use the envelope: `{"error": {"code": "<code>", "message": "<message>"}}`
 
----
-
-## POST /admin/signup
-
-Create a new user account. **No authentication required.** Requires a valid invite code.
-
-**Request body:**
-```json
-{
-  "invite": "xi_...",
-  "username": "my-username",
-  "email": "user@example.com"
-}
-```
-
-- `invite` (string, required) — Invite code, format `xi_...`
-- `username` (string, required) — Must be a valid DNS label (see Hostname Rules below)
-- `email` (string, optional) — User's email address
-
-**Response (200):**
-```json
-{
-  "user_id": "uuid",
-  "username": "my-username",
-  "email": "user@example.com",
-  "token": "xh_..."
-}
-```
-
-**Errors:**
-- `token_invalid` (401) — invite is invalid or already used
-- `bad_request` (400) — username is already taken, or username fails DNS label validation
-
----
-
-## POST /admin/invites
-
-Create a new invite code. **Admin only** (token must belong to the configured admin user).
-
-**Request body:** None
-
-**Response (200):**
-```json
-{
-  "invite": "xi_..."
-}
-```
-
-**Errors:**
-- `admin_not_configured` (403) — admin user is not set up on the server
-- `permission_denied` (403) — caller is not the admin user
+> **Signing up** happens in the browser via Google sign-in at <https://xhostd.com>. There is no signup API. After signing in, create API tokens for CLI/agent use on the [dashboard](https://xhostd.com/dashboard). The token is shown once at creation.
 
 ---
 
@@ -287,6 +237,85 @@ Fetch the deploy log as plain text.
 
 **Errors:**
 - `not_found` (404) — deploy not found or log not available yet
+
+---
+
+## GET /apps/{app_id}/tree
+
+List all files in the repo at the given ref. Lets a stateless agent see the current contents before editing.
+
+**Query parameters:**
+
+- `ref` (string, optional, default `master`) — Branch name or 40-char SHA.
+
+**Response (200):**
+```json
+{
+  "ref": "master",
+  "sha": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+  "files": [
+    {"path": "index.html", "kind": "blob", "size": 142},
+    {"path": "static/style.css", "kind": "blob", "size": 87}
+  ]
+}
+```
+
+**Errors:**
+- `not_found` (404) — app not found, or ref does not exist (e.g. empty repo with no commits yet)
+
+---
+
+## GET /apps/{app_id}/blob
+
+Return the raw bytes of a single file at the given ref. Useful when an agent needs to read existing content before modifying it.
+
+**Query parameters:**
+
+- `ref` (string, optional, default `master`) — Branch name or 40-char SHA.
+- `path` (string, required) — Repository-relative file path.
+
+**Response (200):** Raw file bytes (`application/octet-stream`).
+
+**Errors:**
+- `not_found` (404) — app, ref, or file not found
+
+---
+
+## POST /apps/{app_id}/changeset
+
+Apply a sparse changeset to the repo and create one real git commit on top of `ref`'s current HEAD (or as the initial commit on an empty branch). Designed for agents without shell access or local git — string values upsert files, `null` deletes, absent paths are unchanged.
+
+**Required scope:** `repo:*`
+
+**Request body:**
+```json
+{
+  "ref": "master",
+  "message": "agent: update headline",
+  "changes": {
+    "index.html": "<!doctype html><h1>hello</h1>",
+    "static/style.css": "body { font-family: sans-serif; }",
+    "old-page.html": null
+  }
+}
+```
+
+- `ref` (string, optional, default `"master"`) — Target branch. Must match `^[A-Za-z0-9][A-Za-z0-9/_\-\.]*$`. Created if it does not yet exist.
+- `message` (string, required) — Commit message. Must be non-empty.
+- `changes` (object, required) — Map of repo-relative path → string (upsert) or `null` (delete). Paths must be relative and must not contain `..` segments.
+
+**Response (200):**
+```json
+{
+  "sha": "def456abcdef456abcdef456abcdef456abcdef4"
+}
+```
+
+**Note:** This endpoint creates a commit but does not deploy. Pass the returned `sha` to `POST /apps/{app_id}/channels/{channel_id}/deploy` to ship it. Same two-step model as `git push` followed by deploy.
+
+**Errors:**
+- `bad_request` (400) — invalid path, invalid branch name, empty message, or malformed changeset
+- `not_found` (404) — app not found
 
 ---
 
