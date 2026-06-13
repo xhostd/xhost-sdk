@@ -1,12 +1,14 @@
 # xhost API Reference
 
-Base URL: `${XHOST_API_URL:-https://api.xhostd.com}`
+This is the underlying HTTP API that the MCP tools wrap. For normal agent usage, prefer the `mcp__xhost__*` tools — they handle auth automatically via OAuth and do not require any user-facing token step. This reference is here for deep dives, debugging, or direct programmatic access.
 
-All authenticated endpoints require the header: `Authorization: Bearer <XHOST_TOKEN>`
+Base URL: `https://api.xhostd.com`
+
+All authenticated endpoints require the header: `Authorization: Bearer <token>` where `<token>` is either the user's OAuth-issued bearer (carried by the MCP server) or a short-lived git-push token minted via the `get_git_credentials` MCP tool (repo-scoped only).
 
 All error responses use the envelope: `{"error": {"code": "<code>", "message": "<message>"}}`
 
-> **Signing up** happens in the browser via Google sign-in at <https://xhostd.com>. There is no signup API. After signing in, create API tokens for CLI/agent use on the [dashboard](https://xhostd.com/dashboard). The token is shown once at creation.
+> **Signing up** happens in the browser via Google sign-in on first OAuth authorization. There is no signup API.
 
 ---
 
@@ -351,42 +353,22 @@ Delete an environment variable from an app.
 
 ---
 
-## POST /tokens
+## POST /git-credentials
 
-Create a new API token for the authenticated user. The token receives the default granted scopes: `repo:*`, `deploy:*`, `channel:*`.
+Mint short-lived (24h) git-push credentials for the authenticated user. The returned token is repo-scoped (`repo:*`) only — it cannot deploy, manage channels, env vars, or domains.
 
-**Request body:**
-```json
-{
-  "label": "my-ci-token"
-}
-```
-
-- `label` (string, optional) — A human-readable label for the token.
+**Request body:** None
 
 **Response (200):**
 ```json
 {
-  "token_id": "uuid",
-  "plaintext": "xh_...",
-  "scopes": ["repo:*", "deploy:*", "channel:*"],
-  "label": "my-ci-token",
-  "created_at": "2025-01-15T10:30:00Z"
+  "token": "xh_...",
+  "username": "alice",
+  "expires_at": "2025-01-16T10:30:00Z"
 }
 ```
 
-**Note:** The `plaintext` value is only returned once at creation time. Store it securely.
-
----
-
-## DELETE /tokens/{token_id}
-
-Revoke a token by its UUID. Only the token's owner can revoke it.
-
-**Response:** 204 No Content
-
-**Errors:**
-- `not_found` (404) — token not found or not owned by caller
+To push: set the remote to `https://<token>@git.xhostd.com/<username>/<app>.git` (the per-app `repo_url` from `GET /apps/{app_id}` already has the right path), then `git push`. Re-mint after expiry.
 
 ---
 
@@ -507,11 +489,13 @@ The `<name>` portion (when not `*`) must match: `^[A-Za-z0-9][A-Za-z0-9/_\-\.]*$
 
 ## Token Scopes
 
-Tokens are issued with default scopes: `repo:*`, `deploy:*`, `channel:*`.
+OAuth-issued bearer tokens (used by the MCP server) carry the full default scope set: `repo:*`, `deploy:*`, `channel:*`.
+
+Git-push tokens minted via `POST /git-credentials` carry only `repo:*` — enough for `git push`/`git clone`, not enough for deploys, env vars, or channel management.
 
 | Scope | Grants |
 |-------|--------|
-| `repo:*` | Create apps (POST /apps) |
+| `repo:*` | Create apps (POST /apps), push to git repos |
 | `channel:*` | Create channels (POST /apps/{id}/channels) |
 | `deploy:*` | Deploy (POST /apps/{id}/channels/{id}/deploy), manage env vars |
 | `db:*` | Reserved; cannot be used |

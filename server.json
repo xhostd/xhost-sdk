@@ -3,7 +3,7 @@
   "name": "com.xhostd/mcp",
   "title": "xhost",
   "description": "Agent-first hosting: create apps, commit code, deploy, get HTTPS URLs. OAuth sign-in, no tokens.",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "websiteUrl": "https://xhostd.com",
   "repository": {
     "url": "https://github.com/yairl/xhost-sdk",

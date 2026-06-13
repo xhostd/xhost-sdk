@@ -1,185 +1,128 @@
-# Getting Started with xhost
+# Getting Started with xhost — Worked Example
 
-This guide walks you through setting up your first static site on xhost, from account creation to live deployment.
+This walks through what an agent does, end-to-end, when a non-technical user says something like *"build me a little site that lists my favourite coffee shops in Lisbon and put it online"*. No tokens, no copy-pasting, no shell.
 
-## 1. Sign Up
+## 0. Prerequisites
 
-Open <https://xhostd.com> and click **Sign in with Google**. On first sign-in you'll be asked to pick a **username** — that becomes part of your project URLs (e.g. `my-site-yourname.xhostd.com`).
+The xhost plugin is installed (Claude Code) or the xhost connector is enabled (claude.ai). The `mcp__xhost__*` tools are available. The user has authenticated once via OAuth — if not, point them to `/mcp` → xhost → Authenticate (Claude Code) or the connector's Connect button (claude.ai). They will sign in with Google and, on the first sign-in only, pick a **username** (lowercase letters, digits, hyphens; 1–40 chars; cannot start or end with a hyphen). That username becomes part of every public URL.
 
-Username rules:
-- Lowercase letters, digits, and hyphens only
-- 1 to 40 characters
-- Cannot start or end with a hyphen
+## 1. Decide on a name
 
-## 2. Connect via MCP (recommended) or Create an API Token
+Pick a DNS-label app name from the user's description — e.g. `lisbon-coffee`. Confirm the name with them in one line before creating anything. Rules: `^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`, max 40 chars. Reserved prefixes (rejected by the API): `git`, `api`, `www`, `admin`, `preview`, `staging`.
 
-**MCP (recommended for Claude Code):** the xhost plugin bundles the MCP server, so the tools are already registered. Run `/mcp`, select **xhost**, choose **Authenticate** — a browser opens for Google sign-in and a one-click approval. Done; no token to copy. (Without the plugin: `claude mcp add --transport http xhost https://mcp.xhostd.com/mcp/` first.) The signup from step 1 happens inside this flow too if you haven't done it yet.
-
-**API token (needed for git pushes and raw curl):** after signing in you land on your dashboard. Click **Create token**, give it a label (e.g. `claude-code`), and copy the `xh_...` plaintext shown once.
-
-## 3. Set Your Token (token path only)
-
-Save the token so xhost commands can authenticate:
-
-**For the current session:**
-```bash
-export XHOST_TOKEN=xh_your_token_here
-```
-
-**For persistence** (add to your shell profile):
-```bash
-echo 'export XHOST_TOKEN=xh_your_token_here' >> ~/.bashrc
-# or ~/.zshrc, depending on your shell
-```
-
-Also set the API URL if you are not using the default (`https://api.xhostd.com`):
-```bash
-export XHOST_API_URL=https://api.xhostd.com
-```
-
-## 4. Create Your First App
-
-Navigate to your project directory (a git repository with your static site) and run:
+## 2. Create the app
 
 ```
-/xhost:init
+mcp__xhost__create_app(name="lisbon-coffee", template="static")
 ```
 
-This will:
-1. Derive an app name from your directory name
-2. Create the app on xhost (which provisions a git repo and a production channel)
-3. Add an `xhost` git remote to your local repo
-4. Push your code to trigger the first deploy
+Use `template="static"` for plain HTML/CSS/JS (nginx serves the files). Use `template="app"` if the user wants a dynamic backend — that template runs `install.sh` then `launch.sh` inside a runtime image with Node 22, Python 3.12, and build tools.
 
-You can also do this manually:
+The response looks like:
 
-```bash
-# Create the app
-curl -sf -X POST "${XHOST_API_URL}/apps" \
-  -H "Authorization: Bearer $XHOST_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"name":"my-site"}'
-
-# Add the git remote (insert your token before the hostname)
-git remote add xhost "https://${XHOST_TOKEN}@git.xhostd.com/<username>/my-site.git"
-
-# Push
-git push xhost master
+```json
+{
+  "id": "f1e2…",
+  "name": "lisbon-coffee",
+  "repo_url": "https://git.xhostd.com/alice/lisbon-coffee.git",
+  "template": "static",
+  "channels": [
+    {
+      "id": "c0a1…",
+      "name": "prod",
+      "hostname": "lisbon-coffee-alice.xhostd.com",
+      "git_ref_binding": "branch:master",
+      "current_sha": null,
+      "status": "provisioning"
+    }
+  ]
+}
 ```
 
-App name rules (same as usernames, plus reserved prefix restrictions):
-- Cannot be or start with: `git`, `api`, `www`, `admin`, `preview`, `staging`
+Remember `app_id` (`f1e2…`) and the prod channel's `id` (`c0a1…`).
 
-## 5. Deploy and See It Live
+## 3. Write the site
 
-After pushing, trigger the deploy:
-
-```bash
-SHA=$(git rev-parse HEAD)
-curl -sf -X POST "${XHOST_API_URL}/apps/<app_id>/channels/<channel_id>/deploy" \
-  -H "Authorization: Bearer $XHOST_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"sha":"'"$SHA"'"}'
-```
-
-Your site will be available at:
+Build the file contents as strings. Then commit them all in one MCP call:
 
 ```
-https://<app-name>-<username>.xhostd.com
+mcp__xhost__commit_files(
+  app_id="f1e2…",
+  message="initial site",
+  files={
+    "index.html": "<!doctype html><html><head><title>Lisbon Coffee</title>…",
+    "style.css": "body{font-family:system-ui;max-width:40rem;margin:2rem auto}…",
+  },
+)
 ```
 
-For example, if your username is `alice` and your app is `my-site`, the URL is:
-```
-https://my-site-alice.xhostd.com
-```
+Returns `{"sha": "abc123…"}`. Only include files that are being added or changed; absent paths are left alone; pass `null` as a value to delete a file.
 
-Check deployment status with:
-```
-/xhost:status
-```
+For an `app`-template project, the same call is used; include `install.sh` and `launch.sh` in the changeset. Example minimal `launch.sh`:
 
-## 6. Preview Branches
-
-To deploy a preview of a feature branch:
-
-```
-/xhost:preview
+```sh
+#!/bin/sh
+set -e
+exec python app.py
 ```
 
-Or manually:
+The runtime sets `$PORT` — the app must listen on it.
 
-1. Create a wildcard channel (one-time setup per app):
-   ```bash
-   curl -sf -X POST "${XHOST_API_URL}/apps/<app_id>/channels" \
-     -H "Authorization: Bearer $XHOST_TOKEN" \
-     -H "Content-Type: application/json" \
-     -d '{"name":"wildcard","git_ref_binding":"branch:*"}'
-   ```
+## 4. Deploy
 
-2. Push your feature branch and trigger a deploy:
-   ```bash
-   git push xhost my-feature
-   SHA=$(git rev-parse HEAD)
-   curl -sf -X POST "${XHOST_API_URL}/apps/<app_id>/channels/<channel_id>/deploy" \
-     -H "Authorization: Bearer $XHOST_TOKEN" \
-     -H "Content-Type: application/json" \
-     -d '{"sha":"'"$SHA"'"}'
-   ```
-
-3. The deploy fan-out creates a `preview-my-feature` child channel. After a few seconds, list channels to find the preview URL:
-   ```bash
-   curl -sf "${XHOST_API_URL}/apps/<app_id>/channels" \
-     -H "Authorization: Bearer $XHOST_TOKEN"
-   ```
-
-Preview channels are cleaned up automatically when the branch is deleted from git.
-
-## 7. Ongoing Deploys
-
-To redeploy, push your changes and then trigger the deploy:
-
-```bash
-# Make changes, commit, and push
-git add .
-git commit -m "update homepage"
-git push xhost master
+```
+mcp__xhost__deploy(
+  app_id="f1e2…",
+  channel_id="c0a1…",
+  sha="abc123…",
+)
 ```
 
-Then trigger the deploy via the API, or use the shorthand:
+Returns `{"deploy_id": "d…", "channel_id": "c0a1…", "status": "queued"}`. Deploys run async.
+
+## 5. Watch the build
+
 ```
-/xhost:deploy
+mcp__xhost__get_deploy_log(app_id="f1e2…", channel_id="c0a1…", deploy_id="d…")
 ```
 
-This stages any uncommitted changes, commits them, pushes, and triggers the deploy.
+Returns plain text. Poll until the log shows the build finished. `static` deploys take a few seconds; the first `app`-template deploy takes 30–90 seconds because `install.sh` runs.
+
+## 6. Hand the user the URL
+
+Read `hostname` from the prod channel (it was in step 2's response, and `mcp__xhost__list_channels` or `mcp__xhost__get_app` will return it later). Tell the user:
+
+> Live at https://lisbon-coffee-alice.xhostd.com
+
+## 7. Iterate
+
+For each follow-up change — "add a section for tea shops", "fix the broken link" — call `commit_files` with the changed files, then `deploy` with the returned sha. The same `prod` channel id is reused.
+
+To preview a change without touching production:
+
+```
+mcp__xhost__create_channel(app_id="f1e2…", name="draft", git_ref_binding="branch:draft")
+mcp__xhost__commit_files(app_id="f1e2…", ref="draft", message="draft tea section", files={…})
+mcp__xhost__deploy(app_id="f1e2…", channel_id="<draft channel id>", ref="draft")
+```
+
+The preview is live at `https://draft-lisbon-coffee-alice.xhostd.com`.
+
+## 8. Optional extras
+
+- **Env vars:** `mcp__xhost__set_env(app_id, key="STRIPE_KEY", value="sk_…")`. Every channel automatically has `DATABASE_URL` for its per-channel Postgres schema; don't set it.
+- **Custom domain:** `mcp__xhost__add_custom_domain(app_name, channel, domain)` returns an `instructions` field with the exact TXT + CNAME/A records the user needs to add at their registrar — relay it verbatim. After they add the records, call `mcp__xhost__verify_custom_domain` with the same args. HTTPS works automatically once verified.
+- **Google sign-in for parts of the site:** `mcp__xhost__set_oauth_paths(app_name, channel, paths=["/admin/*"])`. The app receives the visitor's identity in `X-XHost-User-Email` headers.
+- **Local git workflow (Claude Code only):** if the user wants to push from a local checkout, call `mcp__xhost__get_git_credentials`, configure `git remote add xhost https://<token>@git.xhostd.com/<username>/<app>.git`, `git push`, then `mcp__xhost__deploy` with `ref="master"`. The token expires after 24 hours and cannot do anything except git push/pull.
 
 ## Troubleshooting
 
-**"Token not set" or "XHOST_TOKEN not set"**
-Run `export XHOST_TOKEN=xh_...` with your token. For persistence, add it to your shell profile.
+**Tool reports unauthenticated.** Tell the user to run `/mcp` → xhost → Authenticate (Claude Code) or reconnect the connector (claude.ai). There is no token to set as an env var.
 
-**"XHOST_API_URL not set"**
-Run `export XHOST_API_URL=https://api.xhostd.com` (or your instance URL).
+**"app name is already taken"** — they already own one with that name. Pick a different name or delete the old app with `mcp__xhost__delete_app`.
 
-**"username is already taken"**
-Choose a different username. Usernames are globally unique.
+**"invalid app name"** — name violates the DNS-label rules or starts with a reserved prefix.
 
-**"app name is already taken"**
-You already have an app with that name. Choose a different name or delete the existing app.
+**Channel `status: provisioning` after deploy** — deploy is still running. Check `get_deploy_log`.
 
-**"could not provision git backend"**
-A server-side issue with the git backend. Try again or contact the operator.
-
-**"xhost remote not found"**
-The current git repo does not have an `xhost` remote. Run `/xhost:init` to set one up.
-
-**Push rejected or authentication failure**
-Make sure the git remote URL includes your token: `https://xh_...@git.xhostd.com/...`. You can update it with:
-```bash
-git remote set-url xhost "https://${XHOST_TOKEN}@git.xhostd.com/<username>/<app>.git"
-```
-
-**Site not updating after push**
-The deploy pipeline runs asynchronously. Wait a few seconds and check status with `/xhost:status`. If the channel status shows `provisioning`, the deploy is still in progress. If it shows `running`, the deploy is complete.
-
-**"cannot delete the prod channel"**
-The production channel is permanent and cannot be deleted. Delete the entire app instead if needed.
+**`status: failed`** — read the deploy log; surface the failure to the user in plain language and propose a fix.

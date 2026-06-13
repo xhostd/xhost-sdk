@@ -3,242 +3,117 @@ name: xhost
 description: >-
   Use when the user wants to deploy a website or app, host a static site, put
   something online, publish a page, create a preview URL, check deployment
-  status, sign up for xhost, configure a token, or mentions xhost in any way.
-  This skill handles everything: account setup, app creation, deploys, previews,
-  and status checks.
-tools: Bash, Read, Glob, Grep, Write
+  status, manage env vars or custom domains, push from a local git checkout,
+  or mentions xhost in any way. Covers the full lifecycle: create app → write
+  files → deploy → live HTTPS URL, plus channels, env, snapshots, domains,
+  and Google sign-in.
 ---
 
-# xhost — Hosting Platform
+# xhost — Agent-First Hosting
 
-xhost is a hosting platform for static sites and dynamic applications. You push code to a git remote, then trigger a deploy via the API. Every app gets a production HTTPS URL, and you can create preview URLs for branches.
+xhost is hosting designed for agents. You create an app, write its files, and deploy it — all through MCP tools. Every app gets a production HTTPS URL; named channels give preview URLs. The same `mcp__xhost__*` tools are available on Claude Code and on claude.ai (via the connector), so the procedure below is identical in both contexts.
 
-## Current Context
+## Authentication
 
-- Working directory: !`pwd`
-- Git remotes: !`git remote -v`
-- Current branch: !`git branch --show-current`
-- Latest commit: !`git log --oneline -1`
+Tools are already authenticated via OAuth — the plugin (Claude Code) and the connector (claude.ai) both handle this. Just call the tools.
 
-## Prerequisites
+If a tool reports unauthenticated:
+- **Claude Code:** tell the user to run `/mcp`, select **xhost**, choose **Authenticate**. A browser opens, they sign in with Google (picking a username on first sign-in), approve, done.
+- **claude.ai:** tell the user to reconnect the xhost connector in Settings → Connectors.
 
-**Check for xhost MCP tools first.** This plugin bundles the xhost MCP server, so tools like `list_apps`, `create_app`, `commit_files`, and `deploy` (tool names contain `xhost`) are usually available directly. If they are:
+There is no API token to mint, copy, paste, or export. Do not ask the user for one.
 
-- **Prefer the MCP tools for all API operations** — no token setup needed. Auth is handled by OAuth: if a tool call reports it's unauthenticated, tell the user to run `/mcp`, select the **xhost** server, and choose **Authenticate** (a browser opens for Google sign-in and a one-click approval; on first sign-in they pick a username).
-- A token (`XHOST_TOKEN`) is only needed for the **fallback paths**: pushing to the git remote directly or calling the raw HTTP API with curl.
+## The golden path
 
-If MCP tools are NOT available, fall back to the raw HTTP API. Two environment variables control raw-API access:
+Three tools, in order. Names below are shown as `mcp__xhost__<name>` (Claude Code namespacing) but the underlying tool is the same on claude.ai — drop the prefix if the runtime exposes them unprefixed.
 
-- **XHOST_TOKEN** — Your API token (starts with `xh_`). Required for all raw-API operations and for the git remote.
-- **XHOST_API_URL** — The API base URL. Defaults to `https://api.xhostd.com`.
+1. **`mcp__xhost__create_app`** — args: `name`, `template` (`"static"` for plain HTML/CSS/JS, `"app"` for projects with `install.sh`/`launch.sh`). Returns the app object with `id`, `repo_url`, and `channels[0]` (the auto-created `prod` channel) including its `id` and `hostname`. Hold onto `app_id` and the prod `channel_id`.
+2. **`mcp__xhost__commit_files`** — args: `app_id`, `message`, `files` (a `{path: content-or-null}` map; string upserts, null deletes), `ref` (default `"master"`). Returns `{sha}`. Send only files that are changing.
+3. **`mcp__xhost__deploy`** — args: `app_id`, `channel_id`, `sha` (from step 2). Returns `{deploy_id, channel_id, status: "queued"}`.
 
-Check if they are set:
-```bash
-[ -n "$XHOST_TOKEN" ] && echo "Token is set" || echo "Token not set"
-echo "API URL: ${XHOST_API_URL:-https://api.xhostd.com}"
-```
+Then poll **`mcp__xhost__get_deploy_log`** with `app_id`, `channel_id`, `deploy_id` until the build finishes. For `static` apps deploys are seconds; for `app` template the first deploy runs `install.sh` and can take 30–90s.
 
-If the token is not set, guide the user through signup or login (see the Signup and Login sections below).
+Naming rules: app and channel names are DNS labels — `^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`, max 40 chars. Reserved app-name prefixes (rejected): `git`, `api`, `www`, `admin`, `preview`, `staging`. Channel name `prod` is reserved (auto-created).
 
----
+## Channels (prod vs preview)
 
-## Signup — Create a New Account
+Every app has one `prod` channel bound to `branch:master`, created automatically. For preview/staging environments call **`mcp__xhost__create_channel`** with `app_id`, `name` (e.g. `staging`), `git_ref_binding` (`branch:<name>`, one explicit channel per branch — the legacy `branch:*` wildcard is rejected).
 
-Account creation happens in a browser because Google sign-in is required.
+`deploy` targets a specific channel via `channel_id`. To find channel ids later: **`mcp__xhost__list_channels`** with `app_id`.
 
-- **MCP path (preferred):** tell the user to run `/mcp` → **xhost** → **Authenticate**. The browser flow covers signup too: Google sign-in, username selection on first sign-in, then a one-click approval. No token to copy.
-- **Token path (for git pushes / raw curl):**
-  1. Send the user to <https://xhostd.com> and tell them to click **Sign in with Google**.
-  2. On first sign-in they pick a username (lowercase, digits, hyphens, 1–40 chars).
-  3. Then send them to <https://xhostd.com/tokens?label=claude-code> and tell them to click **Create token** and copy the `xh_...` plaintext that's shown once.
-  4. They give you the token; tell them:
-     - `export XHOST_TOKEN=xh_...` (session)
-     - Add to shell profile for persistence
+URL format:
+- Prod: `https://<app>-<owner>.xhostd.com`
+- Other channels: `https://<channel>-<app>-<owner>.xhostd.com`
 
-If any raw API call later returns 401, the token is dead. Send the user to the same URL — <https://xhostd.com/tokens?label=claude-code> — to mint a new one, and have them paste it back. (For MCP tools, a 401 just means re-running `/mcp` → Authenticate.)
+`<owner>` is the user's xhost username (chosen at first sign-in). The exact `hostname` is always in the channel object returned by `create_app` / `list_channels` / `get_app` — read it from there rather than constructing it.
 
----
+## Common follow-ups
 
-## Login — Configure an Existing Token
+- **Env vars:** `mcp__xhost__set_env` (`app_id`, `key`, `value`) and `mcp__xhost__delete_env` (`app_id`, `key`). Keys must match `^[A-Z_][A-Z0-9_]*$`. Reserved (don't try to set): `XHOST_USER`, `XHOST_SHA`, `DATABASE_URL`, `DATABASE_HOST`, `DATABASE_PASSWORD`. Every channel automatically gets `DATABASE_URL` pointing at a per-channel Postgres schema — read it from `process.env` (or equivalent); don't ask the user for a connection string.
+- **Usage stats:** `mcp__xhost__get_app_stats` (`app_name`, optional `channel`, `window` ∈ `24h`/`7d`/`30d`).
+- **Snapshots:** every non-static deploy auto-snapshots Postgres beforehand. `mcp__xhost__list_channel_snapshots` (`app_name`, `channel`) lists them newest-first; `mcp__xhost__restore_channel_db` (`app_name`, `channel`, `snapshot_id`) rolls back via staging-schema swap. Refuses `prod` unless `XHOST_ALLOW_PROD_RESTORE=1` is set on the app.
+- **Custom domains:** `mcp__xhost__add_custom_domain` (`app_name`, `channel`, `domain`) returns DNS instructions (TXT + CNAME or A) in the `instructions` field — relay that text to the user verbatim. After they create the records, call `mcp__xhost__verify_custom_domain` (same args). HTTPS is automatic once verified. `mcp__xhost__list_custom_domains` and `mcp__xhost__remove_custom_domain` are also available. Limit 5 per channel.
+- **Google sign-in for the user's app:** `mcp__xhost__set_oauth_paths` (`app_name`, `channel`, `paths`) protects URL prefixes (e.g. `["/admin/*"]`) with Google sign-in; the app receives the visitor's identity via `X-XHost-User-Email`/`-Name`/`-Sub` headers. Pass `paths: []` to disable. `mcp__xhost__get_oauth_paths` reads the current list.
 
-The user already has an xhost account and wants to use the raw API or git remote. (If they only need MCP tools, `/mcp` → Authenticate is enough — skip this.)
+## Working with git locally (Claude Code only)
 
-1. Ask the user for their `xh_*` token.
-2. Validate by calling:
+If the user wants to push from a local working copy — e.g. iterating on a sizable project where `commit_files` round-trips through MCP would be slow — use git directly:
+
+1. Call **`mcp__xhost__get_git_credentials`**. Returns `{token, username, expires_at}`. The token expires in 24 hours and is repo-scoped (cannot deploy, manage envs, or touch channels).
+2. Get the app's `repo_url` via `mcp__xhost__get_app` (`app_id`). It looks like `https://git.xhostd.com/<username>/<app>.git`.
+3. Configure the remote with the token inline:
    ```
-   curl -sf -H "Authorization: Bearer <token>" ${XHOST_API_URL:-https://api.xhostd.com}/apps
+   git remote add xhost "https://<token>@git.xhostd.com/<username>/<app>.git"
    ```
-3. If invalid, tell the user. If valid, tell them to:
-   - `export XHOST_TOKEN=xh_...` (session)
-   - Add to shell profile for persistence
+   (or `git remote set-url xhost ...` if it already exists).
+4. `git push xhost master` (or your branch).
+5. Trigger the build with **`mcp__xhost__deploy`** — pushing stores code but does not deploy. Pass `ref: "master"` (or the branch name) so xhostd resolves to HEAD; or pass an explicit `sha`.
 
----
+Rules: the token is short-lived; never commit it into the repo or write it into a file the user might check in. Re-mint by calling `get_git_credentials` again after expiry. All non-git operations (deploys, envs, channels, domains, snapshots) still go through MCP tools — the git token cannot do them.
 
-## Init — Create an App and Connect This Project
+## All 24 tools
 
-> **MCP shortcut:** if the xhost MCP tools are available, use `create_app` → `commit_files` → `deploy` instead of the raw-API steps below — no token or git remote required. The steps below are the raw-API/git fallback.
+Apps:
+- `list_apps` — List Apps: all apps owned by the user, with channels.
+- `create_app` — Create App: provisions repo and `prod` channel.
+- `get_app` — Get App Details: single app by id, including `repo_url`.
+- `delete_app` — Delete App: tears down app + all channels + routes.
 
-Set up a new xhost app linked to the current git repository.
+Channels:
+- `list_channels` — List Channels: channel ids/hostnames for an app.
+- `create_channel` — Create Channel: name + `branch:<name>` binding.
+- `delete_channel` — Delete Channel: by `app_name`/`channel` name; refuses `prod`.
 
-1. **Check XHOST_TOKEN** — if not set, guide the user through signup or login first.
-2. **Check XHOST_API_URL** — default to `https://api.xhostd.com`.
-3. **Derive app name** from the current directory name. Slugify to DNS label rules (lowercase, replace non-alphanumeric with hyphens, trim, max 40 chars). Reserved prefixes: `git`, `api`, `www`, `admin`, `preview`, `staging`. Ask the user to confirm.
-4. **Detect template and generate scripts** — follow this detection order:
-   a. **launch.sh exists** — use `template: "app"`, do not overwrite. Tell user: "Found existing launch.sh."
-   b. **Node.js project** — if `package.json` exists with `scripts.start`:
-      - Generate `install.sh`:
-        ```sh
-        #!/bin/sh
-        set -e
-        if [ -f package-lock.json ]; then npm ci; else npm install; fi
-        ```
-      - Generate `launch.sh`:
-        ```sh
-        #!/bin/sh
-        set -e
-        if node -e "process.exit(require('./package.json').scripts?.build?0:1)" 2>/dev/null; then
-            npm run build
-        fi
-        exec npm start
-        ```
-      - Tell user: "Detected Node.js project. Created install.sh and launch.sh."
-      - Template: `"app"`.
-   c. **Python project** — if `requirements.txt` exists:
-      - Generate `install.sh`:
-        ```sh
-        #!/bin/sh
-        set -e
-        uv pip install --system --no-cache -r requirements.txt
-        ```
-      - Detect entry point: check for `app.py`, `main.py`, `manage.py` in order.
-      - Generate `launch.sh`:
-        ```sh
-        #!/bin/sh
-        set -e
-        exec python <entry_point>
-        ```
-      - Template: `"app"`.
-   d. **Otherwise** — template `"static"`. No scripts needed.
-5. **Create the app**:
-   ```
-   curl -sf -X POST "${XHOST_API_URL:-https://api.xhostd.com}/apps" \
-     -H "Authorization: Bearer $XHOST_TOKEN" \
-     -H "Content-Type: application/json" \
-     -d '{"name":"<app_name>","template":"<template>"}'
-   ```
-6. Parse the response — it returns `id`, `repo_url`, `template`, and `channels` (with the prod channel's `hostname`).
-7. **Add the git remote** — insert the token before the hostname in `repo_url`:
-   ```
-   git remote add xhost "https://${XHOST_TOKEN}@git.xhostd.com/<username>/<app>.git"
-   ```
-8. If no commits exist, stage everything and create an initial commit. If generated scripts aren't committed, stage and commit them.
-9. **Push**:
-   ```
-   git push xhost master
-   ```
-10. **Deploy** — get the SHA and trigger the deploy:
-    ```
-    SHA=$(git rev-parse HEAD)
-    curl -sf -X POST "${XHOST_API_URL:-https://api.xhostd.com}/apps/<app_id>/channels/<channel_id>/deploy" \
-      -H "Authorization: Bearer $XHOST_TOKEN" \
-      -H "Content-Type: application/json" \
-      -d '{"sha":"'"$SHA"'"}'
-    ```
-11. Report: **"App created and deployed! Live at https://\<hostname\>"**
-    - Mention that future deploys are: `git push xhost master` then use the Deploy flow below.
-    - For app-template projects: first deploy takes 30-90s (install.sh runs).
+Files + deploy:
+- `list_files` — List Repository Files: tree at a ref.
+- `read_file` — Read File: single file contents at a ref.
+- `commit_files` — Commit Files: sparse upsert/delete changeset → `sha`.
+- `deploy` — Deploy: queue a build of `sha` or `ref` on a channel.
+- `get_deploy_log` — Get Deploy Log: plain-text build/run log.
 
----
+Env:
+- `set_env` — Set Environment Variable: encrypted at rest.
+- `delete_env` — Delete Environment Variable.
 
-## Deploy — Push and Ship
+Stats + DB snapshots:
+- `get_app_stats` — Get App Usage Stats: 24h/7d/30d.
+- `list_channel_snapshots` — List Database Snapshots: pre-deploy snapshots, newest first.
+- `restore_channel_db` — Restore Database Snapshot: staging-schema swap rollback.
 
-Commit, push, and trigger a deploy.
+Custom domains:
+- `add_custom_domain` — Add Custom Domain: returns DNS instructions.
+- `verify_custom_domain` — Verify Custom Domain: re-check DNS after user adds records.
+- `list_custom_domains` — List Custom Domains: per channel.
+- `remove_custom_domain` — Remove Custom Domain: detach.
 
-1. **Check XHOST_TOKEN** — if not set, guide through signup/login.
-2. **Check xhost remote** — `git remote get-url xhost`. If missing, run the Init flow above.
-3. **Check for uncommitted changes** — `git status --short`. If changes exist, stage all and commit with a descriptive message.
-4. **Push**:
-   ```
-   git push xhost master
-   ```
-5. **Get the SHA**: `SHA=$(git rev-parse HEAD)`
-6. **Find the app and channel** — list apps, match `repo_url` against the xhost remote URL (strip the token):
-   ```
-   curl -sf "${XHOST_API_URL:-https://api.xhostd.com}/apps" -H "Authorization: Bearer $XHOST_TOKEN"
-   ```
-7. **Trigger the deploy**:
-   ```
-   curl -sf -X POST "${XHOST_API_URL:-https://api.xhostd.com}/apps/<app_id>/channels/<channel_id>/deploy" \
-     -H "Authorization: Bearer $XHOST_TOKEN" \
-     -H "Content-Type: application/json" \
-     -d '{"sha":"<SHA>"}'
-   ```
-   Body accepts `{sha?, ref?}` (at least one required; both means `sha` wins).
-   `{"ref":"master"}` works too — xhostd resolves the branch to its current HEAD.
-8. **Check deploy log** (optional):
-   ```
-   curl -sf "${XHOST_API_URL:-https://api.xhostd.com}/apps/<app_id>/channels/<channel_id>/logs?deploy=<deploy_id>" \
-     -H "Authorization: Bearer $XHOST_TOKEN"
-   ```
-9. Report: **"Deployed! Live at https://\<hostname\>"**
+Google sign-in (for the user's deployed app):
+- `set_oauth_paths` — Configure Google Sign-In Paths: protect URL prefixes.
+- `get_oauth_paths` — Get Google Sign-In Paths: current list.
 
----
-
-## Preview — Deploy a Branch
-
-Push the current branch and get a preview URL.
-
-1. **Check XHOST_TOKEN** and **xhost remote** — same as Deploy.
-2. **Get current branch**. If on `master`, warn: "This deploys to production. Consider creating a feature branch first." Ask if they want to continue.
-3. **Find the app** via `GET /apps`, match against xhost remote.
-4. **Check for an existing channel bound to this branch**:
-   ```
-   curl -sf "${XHOST_API_URL:-https://api.xhostd.com}/apps/<app_id>/channels" \
-     -H "Authorization: Bearer $XHOST_TOKEN"
-   ```
-5. If none exists, **create one for the branch**:
-   ```
-   curl -sf -X POST "${XHOST_API_URL:-https://api.xhostd.com}/apps/<app_id>/channels" \
-     -H "Authorization: Bearer $XHOST_TOKEN" \
-     -H "Content-Type: application/json" \
-     -d '{"name":"<branch>","git_ref_binding":"branch:<branch>"}'
-   ```
-6. **Commit, push the branch, then trigger deploy** with `{"ref":"<branch>"}` (xhostd resolves HEAD) or `{"sha":"<SHA>"}`.
-7. The channel's hostname is `<branch>-<app>-<user>.<domain>`.
-8. Report: **"Preview deployed! URL: https://\<preview_hostname\>"**
-
----
-
-## Status — Check Apps and Deploys
-
-1. **Check XHOST_TOKEN**.
-2. **List apps**:
-   ```
-   curl -sf "${XHOST_API_URL:-https://api.xhostd.com}/apps" -H "Authorization: Bearer $XHOST_TOKEN"
-   ```
-3. If the `xhost` remote exists, show only the matching app. Otherwise show all.
-4. For each app, display:
-   - App name and template
-   - For each channel: name, URL (`https://<hostname>`), branch binding, current SHA (first 7 chars), status
-
----
-
-## Common Patterns
-
-Use these across all operations:
-
-- **API base URL**: `${XHOST_API_URL:-https://api.xhostd.com}`
-- **Auth header**: `-H "Authorization: Bearer $XHOST_TOKEN"`
-- **Error envelope**: `{"error": {"code": "...", "message": "..."}}` — always show `message` to the user
-- **App resolution**: match the `xhost` git remote URL (strip token) against `repo_url` from `GET /apps`
-- **Hostnames**: always present as `https://<hostname>`
-- **Two-step deploy**: push stores code; `POST /apps/{id}/channels/{id}/deploy` triggers the build
-- **DNS label rules**: `^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`, max 40 chars
-- **Reserved prefixes**: `git`, `api`, `www`, `admin`, `preview`, `staging`
-- **Postgres for free**: every channel gets `DATABASE_URL` in its env automatically. Don't ask the user for connection strings; read `DATABASE_URL` from `process.env` (or equivalent) and let migrations run in `install.sh`. Reserved env keys (don't try to set): `DATABASE_URL`, `DATABASE_HOST`, `DATABASE_PASSWORD`.
+Git:
+- `get_git_credentials` — Get Git Push Credentials: 24h, repo-only scope, for local `git push`.
 
 ## References
 
-For complete API details, see the reference files in this skill:
-- `references/api-reference.md` — Full endpoint documentation
-- `references/getting-started.md` — Step-by-step new user guide
+- `references/getting-started.md` — End-to-end worked example (non-technical user, agent-driven).
+- `references/api-reference.md` — Underlying HTTP API surface for deep dives.
