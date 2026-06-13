@@ -1,5 +1,6 @@
 {
   "name": "xhost-sdk",
+  "description": "Plugins for xhost — agent-first hosting. Install to get the xhost plugin: MCP tools, skill, and OAuth-mediated auth for create-app/commit/deploy flows.",
   "owner": {
     "name": "Yair Lifshitz"
   },
