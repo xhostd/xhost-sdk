@@ -35,6 +35,36 @@ Then poll **`mcp__xhost__get_deploy_log`** with `app_id`, `channel_id`, `deploy_
 
 Naming rules: app and channel names are DNS labels — `^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`, max 40 chars. Reserved app-name prefixes (rejected): `git`, `api`, `www`, `admin`, `preview`, `staging`. Channel name `prod` is reserved (auto-created).
 
+## Runtime contract — what makes a deploy succeed
+
+A deploy is only marked **ready** if the app passes a **health check**: within a time window the platform requests `/` on the app's port and requires an HTTP **2xx** response. A non-2xx (404/500/redirect-loop), or nothing listening on `$PORT`, fails the deploy regardless of whether the app "works." This is the most common reason a first deploy fails — design for it up front.
+
+**`static`** — the committed files are served directly from the **repo root**. Put `index.html` at the root (it answers `/`). No build runs; commit the final HTML/CSS/JS, not un-built sources. Health window ~10s.
+
+**`app`** — your server must:
+- **Listen on `0.0.0.0` and the injected `$PORT`.** Read `$PORT` from the environment; never hardcode a port. Frameworks that default to `localhost`/a fixed port (Flask `app.run()`, `next dev`, Vite preview, etc.) will fail the check — pass the host and `$PORT` explicitly.
+- **Return HTTP 200 at `/`.** A pure API whose routes live under `/api` 404s the health check even though it runs — add a minimal `/` handler that returns 200.
+- **Boot within 120s** of startup, including `install.sh`.
+- **Stay within a small memory budget (~128 MB).** `install.sh` runs under the same budget every time the app starts, so keep installs and builds lean — heavy bundlers (a full Next.js build, a large `npm install`) can run out of memory and fail the deploy.
+
+`install.sh` (optional) runs first to fetch dependencies, then `launch.sh` (required) execs your long-running server — both from the repo root. Minimal pair (Python):
+
+```sh
+# install.sh — runtime deps go here (runs before launch.sh)
+#!/bin/sh
+set -e
+pip install flask gunicorn
+```
+```sh
+# launch.sh — must bind 0.0.0.0:$PORT and serve a 200 at "/"
+#!/bin/sh
+set -e
+exec gunicorn --bind "0.0.0.0:$PORT" app:app
+# node equivalent: exec node server.js  (server.js listens on process.env.PORT, host 0.0.0.0)
+```
+
+When a deploy ends in `status: failed`, read `get_deploy_log`: `health check returned non-200` means `/` didn't answer 200 on `$PORT` in time (wrong bind/port, no `/` route, slow boot, or running out of memory during `install.sh`).
+
 ## Channels (prod vs preview)
 
 Every app has one `prod` channel bound to `branch:master`, created automatically. For preview/staging environments call **`mcp__xhost__create_channel`** with `app_id`, `name` (e.g. `staging`), `git_ref_binding` (`branch:<name>`, one explicit channel per branch — the legacy `branch:*` wildcard is rejected).
@@ -51,7 +81,7 @@ URL format:
 
 - **Env vars:** `mcp__xhost__set_env` (`app_id`, `key`, `value`) and `mcp__xhost__delete_env` (`app_id`, `key`). Keys must match `^[A-Z_][A-Z0-9_]*$`. Reserved (don't try to set): `XHOST_USER`, `XHOST_SHA`, `DATABASE_URL`, `DATABASE_HOST`, `DATABASE_PASSWORD`. Every channel automatically gets `DATABASE_URL` pointing at a per-channel Postgres schema — read it from `process.env` (or equivalent); don't ask the user for a connection string.
 - **Usage stats:** `mcp__xhost__get_app_stats` (`app_name`, optional `channel`, `window` ∈ `24h`/`7d`/`30d`).
-- **Snapshots:** every non-static deploy auto-snapshots Postgres beforehand. `mcp__xhost__list_channel_snapshots` (`app_name`, `channel`) lists them newest-first; `mcp__xhost__restore_channel_db` (`app_name`, `channel`, `snapshot_id`) rolls back via staging-schema swap. Refuses `prod` unless `XHOST_ALLOW_PROD_RESTORE=1` is set on the app.
+- **Snapshots:** every non-static deploy auto-snapshots Postgres beforehand. `mcp__xhost__list_channel_snapshots` (`app_name`, `channel`) lists them newest-first; `mcp__xhost__restore_channel_db` (`app_name`, `channel`, `snapshot_id`) rolls the channel's database back to that snapshot. Refuses `prod` unless `XHOST_ALLOW_PROD_RESTORE=1` is set on the app.
 - **Custom domains:** `mcp__xhost__add_custom_domain` (`app_name`, `channel`, `domain`) returns DNS instructions (TXT + CNAME or A) in the `instructions` field — relay that text to the user verbatim. After they create the records, call `mcp__xhost__verify_custom_domain` (same args). HTTPS is automatic once verified. `mcp__xhost__list_custom_domains` and `mcp__xhost__remove_custom_domain` are also available. Limit 5 per channel.
 - **Google sign-in for the user's app:** `mcp__xhost__set_oauth_paths` (`app_name`, `channel`, `paths`) protects URL prefixes (e.g. `["/admin/*"]`) with Google sign-in; the app receives the visitor's identity via `X-XHost-User-Email`/`-Name`/`-Sub` headers. Pass `paths: []` to disable. `mcp__xhost__get_oauth_paths` reads the current list.
 
@@ -98,7 +128,7 @@ Env:
 Stats + DB snapshots:
 - `get_app_stats` — Get App Usage Stats: 24h/7d/30d.
 - `list_channel_snapshots` — List Database Snapshots: pre-deploy snapshots, newest first.
-- `restore_channel_db` — Restore Database Snapshot: staging-schema swap rollback.
+- `restore_channel_db` — Restore Database Snapshot: roll a channel's database back to a snapshot.
 
 Custom domains:
 - `add_custom_domain` — Add Custom Domain: returns DNS instructions.

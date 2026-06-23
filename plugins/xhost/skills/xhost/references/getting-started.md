@@ -16,7 +16,7 @@ Pick a DNS-label app name from the user's description — e.g. `lisbon-coffee`. 
 mcp__xhost__create_app(name="lisbon-coffee", template="static")
 ```
 
-Use `template="static"` for plain HTML/CSS/JS (nginx serves the files). Use `template="app"` if the user wants a dynamic backend — that template runs `install.sh` then `launch.sh` inside a runtime image with Node 22, Python 3.12, and build tools.
+Use `template="static"` for plain HTML/CSS/JS (served directly). Use `template="app"` if the user wants a dynamic backend — that template runs `install.sh` then `launch.sh` in a runtime with Node 22, Python 3.12, and common build tools.
 
 The response looks like:
 
@@ -58,15 +58,26 @@ mcp__xhost__commit_files(
 
 Returns `{"sha": "abc123…"}`. Only include files that are being added or changed; absent paths are left alone; pass `null` as a value to delete a file.
 
-For an `app`-template project, the same call is used; include `install.sh` and `launch.sh` in the changeset. Example minimal `launch.sh`:
+For an `app`-template project, the same call is used; include `install.sh` (optional) and `launch.sh` (required) in the changeset. The deploy only succeeds if the app passes a health check: within 120s the platform requests `/` on the app's port and needs an HTTP **200**. So the server must:
+
+- **Bind `0.0.0.0` on `$PORT`** — read `$PORT` from the environment, don't hardcode. `python app.py` with Flask's default `app.run()` binds `localhost` on a fixed port and will fail the check; pass the host and `$PORT` explicitly.
+- **Answer `/` with a 200** — an API whose routes are all under `/api` fails the check even though it runs; add a minimal `/` handler.
+- **Boot within 120s and stay within a small memory budget (~128 MB).** `install.sh` runs under that budget every time the app starts, so keep it lean — a heavy build can run out of memory.
+
+Example minimal pair (`install.sh` fetches deps, then `launch.sh` starts the server):
 
 ```sh
+# install.sh
 #!/bin/sh
 set -e
-exec python app.py
+pip install flask gunicorn
 ```
-
-The runtime sets `$PORT` — the app must listen on it.
+```sh
+# launch.sh
+#!/bin/sh
+set -e
+exec gunicorn --bind "0.0.0.0:$PORT" app:app
+```
 
 ## 4. Deploy
 
@@ -126,3 +137,7 @@ The preview is live at `https://draft-lisbon-coffee-alice.xhostd.com`.
 **Channel `status: provisioning` after deploy** — deploy is still running. Check `get_deploy_log`.
 
 **`status: failed`** — read the deploy log; surface the failure to the user in plain language and propose a fix.
+
+**Deploy fails right after start / log says `health check returned non-200`** (app template) — the app started but `/` didn't return a 200 on `$PORT` within 120s. Usual causes: the server bound `localhost` or a hardcoded port instead of `0.0.0.0:$PORT`; there's no `/` route (an API under `/api` only); the boot was too slow; or `install.sh`/the process ran out of memory. Fix the bind/`$PORT`, add a `/` handler returning 200, or slim the install.
+
+**Local `git push` succeeded but the deploy is empty / nothing changed** — prod is bound to `branch:master`, but a fresh `git init` defaults to `main`. Push `master` (`git push xhost HEAD:master`) or deploy with `ref` set to your actual branch.
