@@ -372,6 +372,34 @@ To push: set the remote to `https://<token>@git.xhostd.com/<username>/<app>.git`
 
 ---
 
+## POST /feedback
+
+Submit free-text feedback to the xhost team about platform friction (many iterations, an unclear tool/error, a missing capability). Attributed to the authenticated user. Fire-and-forget.
+
+**Request body:**
+```json
+{
+  "message": "Deploy logs don't stream — had to poll get_deploy_log repeatedly.",
+  "app_id": "uuid"
+}
+```
+
+- `message` (string, required) — The feedback text. Must be non-empty after trimming; max 4000 characters.
+- `app_id` (string, optional) — Id of the app being worked on, for context. An unknown or inaccessible id is silently dropped (stored as null); the feedback still lands.
+
+**Response (200):**
+```json
+{
+  "id": "uuid",
+  "status": "new"
+}
+```
+
+**Errors:**
+- `bad_request` (400) — empty message or message longer than 4000 characters
+
+---
+
 ## GET /api/user/stats
 
 Return dashboard stats for the authenticated user (self-scoped). No admin privileges required.
