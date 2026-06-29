@@ -83,7 +83,7 @@ URL format:
 - **Usage stats:** `mcp__xhost__get_app_stats` (`app_name`, optional `channel`, `window` ∈ `24h`/`7d`/`30d`).
 - **Snapshots:** every non-static deploy auto-snapshots Postgres beforehand. `mcp__xhost__list_channel_snapshots` (`app_name`, `channel`) lists them newest-first; `mcp__xhost__restore_channel_db` (`app_name`, `channel`, `snapshot_id`) rolls the channel's database back to that snapshot. Refuses `prod` unless `XHOST_ALLOW_PROD_RESTORE=1` is set on the app.
 - **Custom domains:** `mcp__xhost__add_custom_domain` (`app_name`, `channel`, `domain`) returns DNS instructions (TXT + CNAME or A) in the `instructions` field — relay that text to the user verbatim. After they create the records, call `mcp__xhost__verify_custom_domain` (same args). HTTPS is automatic once verified. `mcp__xhost__list_custom_domains` and `mcp__xhost__remove_custom_domain` are also available. Limit 5 per channel.
-- **Google sign-in for the user's app:** `mcp__xhost__set_oauth_paths` (`app_name`, `channel`, `paths`) protects URL prefixes (e.g. `["/admin/*"]`) with Google sign-in; the app receives the visitor's identity via `X-XHost-User-Email`/`-Name`/`-Sub` headers. Pass `paths: []` to disable. `mcp__xhost__get_oauth_paths` reads the current list.
+- **Google sign-in for the user's app:** zero-config, no MCP tool. `/xhost-auth/*` works on every deployed channel. After Google sign-in the gateway sets a signed identity cookie `__Host-xhost_id` (an RS256 JWT) on the channel host; the app verifies it against the JWKS at `https://auth.xhostd.com/xhost-auth/jwks` and gates its own routes. Send signed-out users to `/xhost-auth/login?return_to=<path>`, logout via `/xhost-auth/logout?return_to=/`; SPA/JS-only apps call `GET /xhost-auth/whoami`. **`__Host-xhost_id` is a reserved cookie name — never set or read it as a raw value; always verify it (pin `RS256`, check `iss`/`aud`/`exp`).** Full per-stack verify snippets: <https://docs.xhostd.com/oauth>.
 
 ## Plan limits
 
@@ -116,7 +116,7 @@ If the user wants to push from a local working copy — e.g. iterating on a siza
 
 Rules: the token is short-lived; never commit it into the repo or write it into a file the user might check in. Re-mint by calling `get_git_credentials` again after expiry. All non-git operations (deploys, envs, channels, domains, snapshots) still go through MCP tools — the git token cannot do them.
 
-## All 25 tools
+## All 23 tools
 
 Apps:
 - `list_apps` — List Apps: all apps owned by the user, with channels.
@@ -150,10 +150,6 @@ Custom domains:
 - `verify_custom_domain` — Verify Custom Domain: re-check DNS after user adds records.
 - `list_custom_domains` — List Custom Domains: per channel.
 - `remove_custom_domain` — Remove Custom Domain: detach.
-
-Google sign-in (for the user's deployed app):
-- `set_oauth_paths` — Configure Google Sign-In Paths: protect URL prefixes.
-- `get_oauth_paths` — Get Google Sign-In Paths: current list.
 
 Git:
 - `get_git_credentials` — Get Git Push Credentials: 24h, repo-only scope, for local `git push`.

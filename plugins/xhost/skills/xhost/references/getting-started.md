@@ -123,7 +123,7 @@ The preview is live at `https://draft-lisbon-coffee-alice.xhostd.com`.
 
 - **Env vars:** `mcp__xhost__set_env(app_id, key="STRIPE_KEY", value="sk_…")`. Every channel automatically has `DATABASE_URL` for its per-channel Postgres schema; don't set it.
 - **Custom domain:** `mcp__xhost__add_custom_domain(app_name, channel, domain)` returns an `instructions` field with the exact TXT + CNAME/A records the user needs to add at their registrar — relay it verbatim. After they add the records, call `mcp__xhost__verify_custom_domain` with the same args. HTTPS works automatically once verified.
-- **Google sign-in for parts of the site:** `mcp__xhost__set_oauth_paths(app_name, channel, paths=["/admin/*"])`. The app receives the visitor's identity in `X-XHost-User-Email` headers.
+- **Google sign-in for parts of the site:** zero-config — no tool to call. `/xhost-auth/*` works on every channel. After sign-in the gateway sets a signed identity cookie `__Host-xhost_id` (an RS256 JWT) on the channel host; the app verifies it against the JWKS at `https://auth.xhostd.com/xhost-auth/jwks` (pin `RS256`, check `iss`/`aud`/`exp`) and gates its own routes. Send signed-out users to `/xhost-auth/login?return_to=<path>`. `__Host-xhost_id` is a reserved cookie name. Per-stack verify snippets: <https://docs.xhostd.com/oauth>.
 - **Local git workflow (Claude Code only):** if the user wants to push from a local checkout, call `mcp__xhost__get_git_credentials`, configure `git remote add xhost https://<token>@git.xhostd.com/<username>/<app>.git`, `git push`, then `mcp__xhost__deploy` with `ref="master"`. The token expires after 24 hours and cannot do anything except git push/pull.
 
 ## Troubleshooting
