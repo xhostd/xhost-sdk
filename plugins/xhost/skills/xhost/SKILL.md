@@ -23,6 +23,8 @@ If a tool reports unauthenticated:
 
 There is no API token to mint, copy, paste, or export. Do not ask the user for one.
 
+If a tool listed in this skill or in llms-full.txt is missing from your runtime tool list, the client cached an older tool set at connect time. llms-full.txt is the source of truth — tell the user to reconnect (Claude Code: `/mcp` → xhost → reconnect; claude.ai: Settings → Connectors → reconnect xhost) to pick up the current tools.
+
 ## The golden path
 
 Three tools, in order. Names below are shown as `mcp__xhost__<name>` (Claude Code namespacing) but the underlying tool is the same on claude.ai — drop the prefix if the runtime exposes them unprefixed.
@@ -117,7 +119,7 @@ If the user wants to push from a local working copy — e.g. iterating on a siza
 
 Rules: the token is short-lived; never commit it into the repo or write it into a file the user might check in. Re-mint by calling `get_git_credentials` again after expiry. All non-git operations (deploys, envs, channels, domains, snapshots) still go through MCP tools — the git token cannot do them.
 
-## All 26 tools
+## All 27 tools
 
 Apps:
 - `list_apps` — List Apps: all apps owned by the user, with channels.
@@ -159,6 +161,9 @@ Custom domains:
 
 Git:
 - `get_git_credentials` — Get Git Push Credentials: 24h, repo-only scope, for local `git push`.
+
+Activity:
+- `list_activity` — List Project Activity: recent events for an app, newest first.
 
 Feedback:
 - `submit_feedback` — Submit Feedback: send free-text feedback to the xhost team; call proactively on friction (many iterations, unclear tool/docs, hard-to-diagnose error, missing capability).
