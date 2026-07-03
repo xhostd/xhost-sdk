@@ -119,7 +119,7 @@ If the user wants to push from a local working copy — e.g. iterating on a siza
 
 Rules: the token is short-lived; never commit it into the repo or write it into a file the user might check in. Re-mint by calling `get_git_credentials` again after expiry. All non-git operations (deploys, envs, channels, domains, snapshots) still go through MCP tools — the git token cannot do them.
 
-## All 27 tools
+## All 28 tools
 
 Apps:
 - `list_apps` — List Apps: all apps owned by the user, with channels.
@@ -161,6 +161,7 @@ Custom domains:
 
 Git:
 - `get_git_credentials` — Get Git Push Credentials: 24h, repo-only scope, for local `git push`.
+- `sync_git` — Sync Git: fetch the connected GitHub repo into the app's xhost mirror → status ({last_sync_status, last_sync_refs, ...}). Deploys auto-sync; use this to refresh without deploying.
 
 Activity:
 - `list_activity` — List Project Activity: recent events for an app, newest first.
