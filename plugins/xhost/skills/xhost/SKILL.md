@@ -30,7 +30,7 @@ If a tool listed in this skill or in llms-full.txt is missing from your runtime 
 Three tools, in order. Names below are shown as `mcp__xhost__<name>` (Claude Code namespacing) but the underlying tool is the same on claude.ai — drop the prefix if the runtime exposes them unprefixed.
 
 1. **`mcp__xhost__create_app`** — args: `name`, `template` (`"static"` for plain HTML/CSS/JS, `"app"` for projects with `install.sh`/`launch.sh`). Returns the app object with `id`, `repo_url`, and `channels[0]` (the auto-created `prod` channel) including its `id` and `hostname`. Hold onto `app_id` and the prod `channel_id`.
-2. **`mcp__xhost__commit_files`** — args: `app_id`, `message`, `files` (a `{path: content-or-null}` map; string upserts, null deletes), `ref` (default `"master"`). Returns `{sha}`. Send only files that are changing.
+2. **`mcp__xhost__commit_files`** — args: `app_id`, `message`, `files` (a `{path: content-or-null}` map; string upserts, null deletes), `ref` (default `"master"`). Returns `{sha}`. Send only files that are changing. On GitHub-connected apps this returns an error; push to GitHub instead.
 3. **`mcp__xhost__deploy`** — args: `app_id`, `channel_id`, `sha` (from step 2). Returns `{deploy_id, channel_id, status: "queued"}`.
 
 Then poll **`mcp__xhost__get_deploy_log`** with `app_id`, `channel_id`, `deploy_id` until the build finishes. For `static` apps deploys are seconds; for `app` template the first deploy runs `install.sh` and can take 30–90s.
@@ -135,7 +135,7 @@ Channels:
 Files + deploy:
 - `list_files` — List Repository Files: tree at a ref.
 - `read_file` — Read File: single file contents at a ref.
-- `commit_files` — Commit Files: sparse upsert/delete changeset → `sha`.
+- `commit_files` — Commit Files: sparse upsert/delete changeset → `sha`. On GitHub-connected apps this returns an error; push to GitHub instead.
 - `deploy` — Deploy: queue a build of `sha` or `ref` on a channel.
 - `get_deploy_log` — Get Deploy Log: plain-text build/run log.
 
