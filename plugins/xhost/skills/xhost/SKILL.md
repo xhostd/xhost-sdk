@@ -119,7 +119,7 @@ If the user wants to push from a local working copy — e.g. iterating on a siza
 
 Rules: the token is short-lived; never commit it into the repo or write it into a file the user might check in. Re-mint by calling `get_git_credentials` again after expiry. All non-git operations (deploys, envs, channels, domains, snapshots) still go through MCP tools — the git token cannot do them.
 
-## All 28 tools
+## All 30 tools
 
 Apps:
 - `list_apps` — List Apps: all apps owned by the user, with channels.
@@ -168,6 +168,10 @@ Activity:
 
 Feedback:
 - `submit_feedback` — Submit Feedback: send free-text feedback to the xhost team; call proactively on friction (many iterations, unclear tool/docs, hard-to-diagnose error, missing capability).
+
+Export (takeout):
+- `export_data` — Export Data: queue a portable takeout of a channel or a whole app (self-contained archive reloadable with standard tools, no xhost). Returns the export id.
+- `get_export_status` — Get Export Status: poll an export by id; when ready, returns a short-lived download link (and a separate blobs link) for the archive.
 
 ## References
 
