@@ -113,7 +113,7 @@ If the user wants to push from a local working copy — e.g. iterating on a siza
    ```
    git remote add xhost "https://<username>:<token>@git.xhostd.com/<username>/<app>.git"
    ```
-   (or `git remote set-url xhost ...` if it already exists).
+   (or `git remote set-url xhost ...` if it already exists). git.xhostd.com also accepts the token as an `Authorization: Bearer` header (`git config http.extraHeader "Authorization: Bearer <token>"`), but the password field is the normal path.
 4. `git push xhost master` (or your branch).
 5. Trigger the build with **`mcp__xhost__deploy`** — pushing stores code but does not deploy. Pass `ref: "master"` (or the branch name) so xhostd resolves to HEAD; or pass an explicit `sha`.
 
