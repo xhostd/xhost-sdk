@@ -107,11 +107,11 @@ It's fire-and-forget: describe the friction in your own words, pass `app_id` whe
 
 If the user wants to push from a local working copy — e.g. iterating on a sizable project where `commit_files` round-trips through MCP would be slow — use git directly:
 
-1. Call **`mcp__xhost__get_git_credentials`**. Returns `{token, username, expires_at}`. The token expires in 24 hours and is repo-scoped (cannot deploy, manage envs, or touch channels).
+1. Call **`mcp__xhost__get_git_credentials`**. Returns `{token, username, expires_at}`. The token expires in 30 days and is repo-scoped (cannot deploy, manage envs, or touch channels).
 2. Get the app's `repo_url` via `mcp__xhost__get_app` (`app_id`). It looks like `https://git.xhostd.com/<username>/<app>.git`.
-3. Configure the remote with the token inline:
+3. Configure the remote with the token in the **password** field (any username works — the password is what git.xhostd.com checks):
    ```
-   git remote add xhost "https://<token>@git.xhostd.com/<username>/<app>.git"
+   git remote add xhost "https://<username>:<token>@git.xhostd.com/<username>/<app>.git"
    ```
    (or `git remote set-url xhost ...` if it already exists).
 4. `git push xhost master` (or your branch).
@@ -159,7 +159,7 @@ Custom domains:
 - `remove_custom_domain` — Remove Custom Domain: detach.
 
 Git:
-- `get_git_credentials` — Get Git Push Credentials: 24h, repo-only scope, for local `git push`.
+- `get_git_credentials` — Get Git Push Credentials: 30-day, repo-only scope, for local `git push`.
 - `sync_git` — Sync Git: fetch the connected GitHub repo into the app's xhost mirror → status ({last_sync_status, last_sync_refs, ...}). Deploys auto-sync; use this to refresh without deploying.
 
 Activity:

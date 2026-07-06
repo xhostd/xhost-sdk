@@ -355,7 +355,7 @@ Delete an environment variable from an app.
 
 ## POST /git-credentials
 
-Mint short-lived (24h) git-push credentials for the authenticated user. The returned token is repo-scoped (`repo:*`) only — it cannot deploy, manage channels, env vars, or domains.
+Mint 30-day git-push credentials for the authenticated user. The returned token is repo-scoped (`repo:*`) only — it cannot deploy, manage channels, env vars, or domains.
 
 **Request body:** None
 
@@ -368,7 +368,7 @@ Mint short-lived (24h) git-push credentials for the authenticated user. The retu
 }
 ```
 
-To push: set the remote to `https://<token>@git.xhostd.com/<username>/<app>.git` (the per-app `repo_url` from `GET /apps/{app_id}` already has the right path), then `git push`. Re-mint after expiry.
+To push: set the remote with the token in the **password** field — `https://<username>:<token>@git.xhostd.com/<username>/<app>.git` (the per-app `repo_url` from `GET /apps/{app_id}` already has the right path), then `git push`. Any username works; the password is what git.xhostd.com checks. (The `Authorization: Bearer` form above is for the REST API only — it does not apply to git.xhostd.com.) The token is valid for 30 days; re-mint after expiry.
 
 ---
 
