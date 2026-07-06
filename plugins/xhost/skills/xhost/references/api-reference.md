@@ -4,7 +4,7 @@ This is the underlying HTTP API that the MCP tools wrap. For normal agent usage,
 
 Base URL: `https://api.xhostd.com`
 
-All authenticated endpoints require the header: `Authorization: Bearer <token>` where `<token>` is either the user's OAuth-issued bearer (carried by the MCP server) or a short-lived git-push token minted via the `get_git_credentials` MCP tool (repo-scoped only).
+All authenticated endpoints require the header: `Authorization: Bearer <token>` where `<token>` is either the user's OAuth-issued bearer (carried by the MCP server) or a 30-day unified credential minted via the `get_credentials` MCP tool (git + Postgres + platform API, full default scopes).
 
 All error responses use the envelope: `{"error": {"code": "<code>", "message": "<message>"}}`
 
@@ -353,18 +353,25 @@ Delete an environment variable from an app.
 
 ---
 
-## POST /git-credentials
+## POST /credentials
 
-Mint 30-day git-push credentials for the authenticated user. The returned token is repo-scoped (`repo:*`) only — it cannot deploy, manage channels, env vars, or domains.
+Mint a 30-day unified credential for the authenticated user. The returned token serves as your git password, Postgres password, and platform API bearer, and carries the full default scope set (`repo:*`, `deploy:*`, `channel:*`, `db:*`, `blob:*`).
 
-**Request body:** None
+**Request body (optional):**
+```json
+{
+  "scopes": ["repo:*", "db:*"]
+}
+```
+`scopes`, when supplied, must be a non-empty subset of the default set and mints a least-privilege credential. Omit the body (or the field) to get the full default scopes.
 
 **Response (200):**
 ```json
 {
   "token": "xh_...",
   "username": "alice",
-  "expires_at": "2025-01-16T10:30:00Z"
+  "expires_at": "2025-01-16T10:30:00Z",
+  "scopes": ["repo:*", "deploy:*", "channel:*", "db:*", "blob:*"]
 }
 ```
 
@@ -517,13 +524,14 @@ The `<name>` portion (when not `*`) must match: `^[A-Za-z0-9][A-Za-z0-9/_\-\.]*$
 
 ## Token Scopes
 
-OAuth-issued bearer tokens (used by the MCP server) carry the full default scope set: `repo:*`, `deploy:*`, `channel:*`.
+OAuth-issued bearer tokens (used by the MCP server) carry the full default scope set: `repo:*`, `deploy:*`, `channel:*`, `db:*`, `blob:*`.
 
-Git-push tokens minted via `POST /git-credentials` carry only `repo:*` — enough for `git push`/`git clone`, not enough for deploys, env vars, or channel management.
+Unified credentials minted via `POST /credentials` carry the full default scope set (`repo:*`, `deploy:*`, `channel:*`, `db:*`, `blob:*`) unless a narrower `scopes` subset is requested.
 
 | Scope | Grants |
 |-------|--------|
 | `repo:*` | Create apps (POST /apps), push to git repos |
 | `channel:*` | Create channels (POST /apps/{id}/channels) |
 | `deploy:*` | Deploy (POST /apps/{id}/channels/{id}/deploy), manage env vars |
-| `db:*` | Reserved; cannot be used |
+| `db:*` | Connect to Postgres through the database gateway (external DB access) |
+| `blob:*` | Mint object-storage credentials for a channel |

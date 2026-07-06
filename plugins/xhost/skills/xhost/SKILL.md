@@ -107,7 +107,7 @@ It's fire-and-forget: describe the friction in your own words, pass `app_id` whe
 
 If the user wants to push from a local working copy — e.g. iterating on a sizable project where `commit_files` round-trips through MCP would be slow — use git directly:
 
-1. Call **`mcp__xhost__get_git_credentials`**. Returns `{token, username, expires_at}`. The token expires in 30 days and is repo-scoped (cannot deploy, manage envs, or touch channels).
+1. Call **`mcp__xhost__get_credentials`**. Returns `{token, username, expires_at, scopes}`. The token expires in 30 days and is the unified credential — one `xh_` secret carrying the full default scopes, so it is your git password, your Postgres password, and your platform API bearer at once.
 2. Get the app's `repo_url` via `mcp__xhost__get_app` (`app_id`). It looks like `https://git.xhostd.com/<username>/<app>.git`.
 3. Configure the remote with the token in the **password** field (any username works — the password is what git.xhostd.com checks):
    ```
@@ -117,7 +117,9 @@ If the user wants to push from a local working copy — e.g. iterating on a siza
 4. `git push xhost master` (or your branch).
 5. Trigger the build with **`mcp__xhost__deploy`** — pushing stores code but does not deploy. Pass `ref: "master"` (or the branch name) so xhostd resolves to HEAD; or pass an explicit `sha`.
 
-Rules: the token is short-lived; never commit it into the repo or write it into a file the user might check in. Re-mint by calling `get_git_credentials` again after expiry. All non-git operations (deploys, envs, channels, domains, snapshots) still go through MCP tools — the git token cannot do them.
+The same token is your **Postgres password** when external database access is enabled in the console: `postgresql://<username>:<token>@db.xhostd.com:5432/<db>?sslmode=require` (`<db>` = app name for `prod`, else `<channel>-<app>`).
+
+Rules: the token is short-lived; never commit it into the repo or write it into a file the user might check in. Re-mint by calling `get_credentials` again after expiry.
 
 ## All 29 tools
 
@@ -159,7 +161,7 @@ Custom domains:
 - `remove_custom_domain` — Remove Custom Domain: detach.
 
 Git:
-- `get_git_credentials` — Get Git Push Credentials: 30-day, repo-only scope, for local `git push`.
+- `get_credentials` — Get Access Credentials: 30-day unified credential (git + Postgres + platform API).
 - `sync_git` — Sync Git: fetch the connected GitHub repo into the app's xhost mirror → status ({last_sync_status, last_sync_refs, ...}). Deploys auto-sync; use this to refresh without deploying.
 
 Activity:
