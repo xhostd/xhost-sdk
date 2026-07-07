@@ -323,7 +323,7 @@ Apply a sparse changeset to the repo and create one real git commit on top of `r
 
 ## POST /apps/{app_id}/env
 
-Set (upsert) an environment variable on an app.
+Set (upsert) an environment variable or secret on an app.
 
 **Required scope:** `deploy:*`
 
@@ -331,17 +331,22 @@ Set (upsert) an environment variable on an app.
 ```json
 {
   "key": "MY_VAR",
-  "value": "my-value"
+  "value": "my-value",
+  "kind": "env",
+  "channel_id": "uuid"
 }
 ```
 
-- `key` (string, required) — Must match `^[A-Z_][A-Z0-9_]*$`. Reserved keys `XHOST_USER` and `XHOST_SHA` are rejected.
+- `key` (string, required) — Must match `^[A-Z_][A-Z0-9_]*$`. Reserved keys (system-injected) are rejected: `XHOST_USER`, `XHOST_SHA`, `DATABASE_URL`, `DATABASE_HOST`, `DATABASE_PASSWORD`, `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_REGION`.
 - `value` (string, required) — The value to set (stored encrypted).
+- `kind` (string, optional, default `env`) — `env` (plain variable) or `secret`. Secret values are never returned by the API (metadata only); they can only be revealed in the web console, where each reveal is audit-logged.
+- `channel_id` (string, optional) — Omit for an app-level default; set to a channel id for a per-channel override. At deploy time the channel override wins over the app default, and system-injected keys win over both.
 
 **Response:** 204 No Content
 
 **Errors:**
 - `bad_request` (400) — invalid key format or reserved key
+- `not_found` (404) — channel not found on this app
 
 ---
 
@@ -349,7 +354,70 @@ Set (upsert) an environment variable on an app.
 
 Delete an environment variable from an app.
 
+**Query parameters:**
+- `channel_id` (optional) — With it, deletes only that channel's override; without it, deletes the app-level default.
+
 **Response:** 204 No Content
+
+---
+
+## GET /apps/{app_id}/env
+
+List an app's environment variables and secrets.
+
+**Query parameters:**
+- `channel_id` (optional) — Without it, raw rows (app-level and per-channel). With it, the resolved view for that channel: app defaults merged with the channel's overrides, the override winning.
+
+**Response (200):**
+```json
+{
+  "env": [
+    {
+      "key": "MY_VAR",
+      "kind": "env",
+      "scope": "app",
+      "channel_id": null,
+      "updated_at": "2025-01-16T10:30:00Z",
+      "value": "my-value"
+    },
+    {
+      "key": "API_TOKEN",
+      "kind": "secret",
+      "scope": "channel",
+      "channel_id": "uuid",
+      "updated_at": "2025-01-16T10:31:00Z",
+      "value": null
+    }
+  ]
+}
+```
+
+- `scope` — `app` (app-level default) or `channel` (channel override).
+- `value` — Cleartext for `kind: "env"`; **always `null` for secrets** — secret values are never returned via the API or MCP.
+
+---
+
+## GET /apps/{app_id}/channels/{channel_id}/deploys/{deploy_id}/env
+
+Return the env snapshot recorded when a deploy started — what the app actually ran with.
+
+**Response (200):**
+```json
+{
+  "deploy_id": "uuid",
+  "env": [
+    {"key": "MY_VAR", "kind": "env", "source": "app", "value": "my-value"},
+    {"key": "API_TOKEN", "kind": "secret", "source": "channel", "value": null}
+  ],
+  "system_keys": ["DATABASE_URL", "S3_BUCKET", "XHOST_SHA", "XHOST_USER"]
+}
+```
+
+- `source` — `app` or `channel`, the scope the value resolved from.
+- Secret values are masked (`null`); system-injected keys are listed by name only (their values are credentials and are not stored in the snapshot).
+
+**Errors:**
+- `not_found` (404) — deploy not found, or it predates env snapshots
 
 ---
 

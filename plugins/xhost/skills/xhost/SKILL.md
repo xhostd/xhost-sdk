@@ -81,7 +81,7 @@ URL format:
 
 ## Common follow-ups
 
-- **Env vars:** `mcp__xhost__set_env` (`app_id`, `key`, `value`) and `mcp__xhost__delete_env` (`app_id`, `key`). Keys must match `^[A-Z_][A-Z0-9_]*$`. Reserved (don't try to set): `XHOST_USER`, `XHOST_SHA`, `DATABASE_URL`, `DATABASE_HOST`, `DATABASE_PASSWORD`, `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_REGION`. Every channel automatically gets `DATABASE_URL` pointing at a per-channel Postgres schema — read it from `process.env` (or equivalent); don't ask the user for a connection string.
+- **Env vars & secrets:** `mcp__xhost__set_env` (`app_id`, `key`, `value`, optional `secret: true`, optional `channel` name) and `mcp__xhost__delete_env` (`app_id`, `key`, optional `channel`). Without `channel` the value is an app-level default; with it, a per-channel override that wins at deploy time. `mcp__xhost__list_env` (`app_id`, optional `channel`) lists entries — with `channel` it's the resolved view (`scope` = `app` or `channel`); plain values come back in cleartext, but **secret values are never returned via MCP** (metadata only — the web console is the only place to reveal a secret, and each reveal is audit-logged). `mcp__xhost__get_deploy_env` (`app_id`, `channel`, `deploy_id`) shows the env a past deploy ran with (secrets masked, system-injected keys by name only). Keys must match `^[A-Z_][A-Z0-9_]*$`. Reserved (don't try to set): `XHOST_USER`, `XHOST_SHA`, `DATABASE_URL`, `DATABASE_HOST`, `DATABASE_PASSWORD`, `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_REGION`. Every channel automatically gets `DATABASE_URL` pointing at a per-channel Postgres schema — read it from `process.env` (or equivalent); don't ask the user for a connection string.
 - **Usage stats:** `mcp__xhost__get_app_stats` (`app_name`, optional `channel`, `window` ∈ `24h`/`7d`/`30d`).
 - **Snapshots:** every non-static deploy auto-snapshots Postgres beforehand. `mcp__xhost__list_channel_snapshots` (`app_name`, `channel`) lists them newest-first; `mcp__xhost__restore_channel_db` (`app_name`, `channel`, `snapshot_id`) rolls the channel's database back to that snapshot. Refuses `prod` unless `XHOST_ALLOW_PROD_RESTORE=1` is set on the app.
 - **Object storage (S3-compatible):** auto-provisioned per channel (like the database — no enable step), for unstructured blobs (uploads, generated assets, exports). `mcp__xhost__get_blob_credentials` (`app_name`, `channel`) returns the endpoint/bucket/key pair, and `mcp__xhost__get_blob_usage` (`app_name`, `channel`) reports bytes used. Deploys inject `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_REGION` — point any S3 SDK at those env vars rather than constructing them. Snapshot **restore** and the **external-access** toggle are dashboard-only (no MCP tool), since a data rollback or making storage public is a deliberate human action.
@@ -121,7 +121,7 @@ The same token is your **Postgres password** when external database access is en
 
 Rules: the token is short-lived; never commit it into the repo or write it into a file the user might check in. Re-mint by calling `get_credentials` again after expiry.
 
-## All 29 tools
+## All 31 tools
 
 Apps:
 - `list_apps` — List Apps: all apps owned by the user, with channels.
@@ -142,8 +142,10 @@ Files + deploy:
 - `get_deploy_log` — Get Deploy Log: plain-text build/run log.
 
 Env:
-- `set_env` — Set Environment Variable: encrypted at rest.
-- `delete_env` — Delete Environment Variable.
+- `set_env` — Set Environment Variable: encrypted at rest; `secret: true` for secrets, `channel` for a per-channel override.
+- `delete_env` — Delete Environment Variable: optional `channel` deletes only that channel's override.
+- `list_env` — List Environment Variables: resolved view with provenance; secret values never returned (metadata only).
+- `get_deploy_env` — Get Deploy Env Snapshot: the env a past deploy ran with; secrets masked, system keys by name.
 
 Stats + DB snapshots:
 - `get_app_stats` — Get App Usage Stats: 24h/7d/30d.
