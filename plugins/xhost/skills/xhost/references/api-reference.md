@@ -212,7 +212,10 @@ Manually enqueue a deploy of a specific SHA to a channel.
 }
 ```
 
-- `sha` (string, required) — A 40-character hex SHA or a branch name matching `^[A-Za-z0-9][A-Za-z0-9/_\-\.]*$`
+- `sha` (string, optional) — A 40-character hex SHA or a branch name matching `^[A-Za-z0-9][A-Za-z0-9/_\-\.]*$`
+- `ref` (string, optional) — A branch name to resolve and deploy; equivalent to passing a branch name as `sha`.
+
+At least one of `sha` or `ref` must be provided. If both are given, `sha` wins and `ref` is ignored.
 
 **Response (200):**
 ```json
@@ -226,7 +229,7 @@ Manually enqueue a deploy of a specific SHA to a channel.
 **Note:** This endpoint must be called explicitly after `git push` to trigger a deploy. Pushing code does not automatically deploy.
 
 **Errors:**
-- `bad_request` (400) — invalid SHA format
+- `bad_request` (400) — invalid SHA format, or neither `sha` nor `ref` given
 - `not_found` (404) — app or channel not found
 
 ---
@@ -580,7 +583,6 @@ The `<name>` portion (when not `*`) must match: `^[A-Za-z0-9][A-Za-z0-9/_\-\.]*$
 | `token_invalid` | 401 | Token does not exist or is malformed |
 | `token_revoked` | 401 | Token has been revoked |
 | `scope_denied` | 403 | Token lacks the required scope |
-| `scope_reserved` | 403 | Attempted to use the reserved `db:*` scope |
 | `permission_denied` | 403 | Admin privileges required |
 | `admin_not_configured` | 403 | Server admin user not set up |
 | `not_found` | 404 | Resource does not exist or is not owned by caller |
