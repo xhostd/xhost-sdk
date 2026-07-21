@@ -108,7 +108,7 @@ URL format:
 
 ## Plan limits
 
-If a tool fails with `plan_limit_exceeded`, this is an **upgrade prompt, not a retryable error** — the user has hit the app or channel cap for their plan. Do not retry. Relay the upgrade URL from the message to the user verbatim, tell them to upgrade in the browser, and re-run the action only after they confirm they've upgraded.
+If a tool fails with `plan_limit_exceeded`, this is an **upgrade prompt, not a retryable error** — the user has hit their plan's account-wide channel quota (every channel counts, including each app's `prod`). Do not retry. Relay the upgrade URL from the message to the user verbatim, tell them to upgrade in the browser, and re-run the action only after they confirm they've upgraded.
 
 ## Giving feedback to the xhost team
 
