@@ -899,9 +899,7 @@ Return dashboard stats for the authenticated user (self-scoped). No admin privil
     "mem_current_mb": 45.2,
     "mem_limit_mb": 256.0,
     "mem_percent": 17.7,
-    "cpu_current_percent": 2.5,
-    "cpu_avg_percent": 1.1,
-    "cpu_usage_sec": 142.5
+    "cpu_current_percent": 2.5
   },
   "sites": [
     {
