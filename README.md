@@ -5,7 +5,7 @@ Claude Code plugin for [xhost](https://xhostd.com) — deploy static sites and d
 ## Install
 
 ```
-/plugin marketplace add yairl/xhost-sdk
+/plugin marketplace add xhostd/xhost-sdk
 /plugin install xhost@xhost-sdk
 ```
 

@@ -6,7 +6,7 @@
   "version": "0.15.0",
   "websiteUrl": "https://xhostd.com",
   "repository": {
-    "url": "https://github.com/yairl/xhost-sdk",
+    "url": "https://github.com/xhostd/xhost-sdk",
     "source": "github"
   },
   "remotes": [

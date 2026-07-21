@@ -6,7 +6,7 @@
     "name": "Yair Lifshitz"
   },
   "homepage": "https://xhostd.com",
-  "repository": "https://github.com/yairl/xhost-sdk",
+  "repository": "https://github.com/xhostd/xhost-sdk",
   "keywords": ["hosting", "deploy", "static-sites", "nodejs", "python"],
   "mcpServers": {
     "xhost": {
