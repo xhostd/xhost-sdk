@@ -1,7 +1,7 @@
 {
   "name": "xhost",
   "description": "Deploy static sites and dynamic applications with xhost. Push code, get HTTPS URLs.",
-  "version": "0.15.1",
+  "version": "0.15.2",
   "author": {
     "name": "Yair Lifshitz"
   },
