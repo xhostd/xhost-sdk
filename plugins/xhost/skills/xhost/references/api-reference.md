@@ -60,7 +60,7 @@ Create a new app. Provisions a git repository and a `prod` channel automatically
 ```
 
 - `name` (string, required) — Must be a valid DNS label and must not use a reserved prefix (see Hostname Rules)
-- `template` (string, optional, default `"static"`) — Runtime template. Valid values: `"static"` (nginx static file serving) and `"app"` (user-provided `install.sh` + `launch.sh`). `"node"` is accepted as an alias for `"app"`. The `app` template runs inside an `xhost-runtime` image with Node 22, Python 3.12, and build tools pre-installed. The user provides `install.sh` (optional, installs dependencies) and `launch.sh` (required, starts the app on `$PORT`).
+- `template` (string, optional, default `"static"`) — Runtime template. Valid values: `"static"` (nginx static file serving), `"app"` (user-provided `install.sh` + `launch.sh`), and `"docker"` (the `Dockerfile` at the repo root is built and run; the container must listen on `$PORT`). The `app` template runs inside an `xhost-runtime` image with Node 22, Python 3.12, and build tools pre-installed. The user provides `install.sh` (optional, installs dependencies) and `launch.sh` (required, starts the app on `$PORT`).
 
 **Response (200):**
 ```json
