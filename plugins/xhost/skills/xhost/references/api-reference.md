@@ -60,7 +60,7 @@ Create a new app. Provisions a git repository and a `prod` channel automatically
 ```
 
 - `name` (string, required) — Must be a valid DNS label and must not use a reserved prefix (see Hostname Rules)
-- `template` (string, optional, default `"static"`) — Runtime template. Valid values: `"static"` (nginx static file serving), `"app"` (user-provided `install.sh` + `launch.sh`), and `"docker"`. The `app` template runs inside an `xhost-runtime` image with Node 22, Python 3.12, and build tools pre-installed. The user provides `install.sh` (optional, installs dependencies) and `launch.sh` (required, starts the app on `$PORT`). The `docker` template builds the `Dockerfile` at the repo root on every deploy and runs the image with its own `ENTRYPOINT`/`CMD`: the container must listen on `$PORT` (injected) and answer the health check `GET /` with a 2xx. Env vars are injected at run time only — never as build args, so secrets are unavailable during the build and must never be baked into the image. Charged image size (total minus warm-base layers) is capped per plan: free 512 MiB / basic 2 GiB / pro 4 GiB. Warm base images are exempt from the charged size: `node:22-slim`, `node:24-slim`, `python:3.11-slim`, `python:3.12-slim`, `python:3.13-slim`, `debian:trixie-slim`. Docker deploys stream `[build] ...` lines (queue position, build duration, image size vs cap) into the deploy log.
+- `template` (string, optional, default `"static"`) — Runtime template. Valid values: `"static"` (nginx static file serving), `"app"` (user-provided `install.sh` + `launch.sh`), and `"docker"`. The `app` template runs inside an `xhost-runtime` image with Node 22, Python 3.13, and build tools pre-installed. The user provides `install.sh` (optional, installs dependencies) and `launch.sh` (required, starts the app on `$PORT`). The `docker` template builds the `Dockerfile` at the repo root on every deploy and runs the image with its own `ENTRYPOINT`/`CMD`: the container must listen on `$PORT` (injected) and answer the health check `GET /` with a 2xx. Env vars are injected at run time only — never as build args, so secrets are unavailable during the build and must never be baked into the image. Charged image size (total minus warm-base layers) is capped per plan: free 512 MiB / basic 2 GiB / pro 4 GiB. Warm base images are exempt from the charged size: `node:22-slim`, `node:24-slim`, `python:3.11-slim`, `python:3.12-slim`, `python:3.13-slim`, `debian:trixie-slim`. Docker deploys stream `[build] ...` lines (queue position, build duration, image size vs cap) into the deploy log.
 
 **Response (200):**
 ```json
@@ -230,6 +230,32 @@ At least one of `sha` or `ref` must be provided. If both are given, `sha` wins a
 
 **Errors:**
 - `bad_request` (400) — invalid SHA format, or neither `sha` nor `ref` given
+- `not_found` (404) — app or channel not found
+
+---
+
+## POST /apps/{app_id}/channels/{channel_id}/rewind
+
+Instantly rewind a channel to its previous deploy's image — a one-step cutover with no rebuild, no git sync, and no snapshot (it boots the retained image directly, so it is fast). "Previous" is the last successful deploy whose commit differs from the one live now.
+
+**Required scope:** `deploy:*`
+
+**Request body:** none.
+
+**Response (200):**
+```json
+{
+  "deploy_id": "uuid",
+  "channel_id": "uuid",
+  "status": "queued"
+}
+```
+
+**Note:** To go back to an OLDER commit, or to force a fresh rebuild, use the deploy endpoint with an explicit `sha` instead. Rewind is not available for `static` apps (they bind-mount the live worktree and have no built image).
+
+**Errors:**
+- `bad_request` (400) — the app is `static`, or the channel has only ever deployed one commit (nothing to rewind to)
+- `conflict` (409) — the account is mid-move
 - `not_found` (404) — app or channel not found
 
 ---

@@ -16,7 +16,7 @@ Pick a DNS-label app name from the user's description — e.g. `lisbon-coffee`. 
 mcp__xhost__create_app(name="lisbon-coffee", template="static")
 ```
 
-Use `template="static"` for plain HTML/CSS/JS (served directly). Use `template="app"` if the user wants a dynamic backend — that template runs `install.sh` then `launch.sh` in a runtime with Node 22, Python 3.12, and common build tools.
+Use `template="static"` for plain HTML/CSS/JS (served directly). Use `template="app"` if the user wants a dynamic backend — that template runs `install.sh` then `launch.sh` in a runtime with Node 22, Python 3.13, and common build tools.
 
 The response looks like:
 

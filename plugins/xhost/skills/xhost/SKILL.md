@@ -35,6 +35,8 @@ Three tools, in order. Names below are shown as `mcp__xhost__<name>` (Claude Cod
 
 Then poll **`mcp__xhost__get_deploy_log`** with `app_id`, `channel_id`, `deploy_id` until the build finishes. For `static` apps deploys are seconds; for `app` template the first deploy runs `install.sh` and can take 30–90s. For `docker` the deploy builds the image first — the log streams `[build] ...` lines (queue position, build duration, image size vs your plan's cap).
 
+To undo the last deploy, use **`mcp__xhost__rewind`** — args: `app_id`, `channel_id`. It's an instant one-step cutover to the previous deploy's image (no rebuild). To go back to an older commit, or to force a fresh rebuild, use `deploy` with that `sha` instead. Not available for `static` apps.
+
 Naming rules: app and channel names are DNS labels — `^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`, max 40 chars. Reserved app-name prefixes (rejected): `git`, `api`, `www`, `admin`, `preview`, `staging`. Channel name `prod` is reserved (auto-created).
 
 ## Runtime contract — what makes a deploy succeed
