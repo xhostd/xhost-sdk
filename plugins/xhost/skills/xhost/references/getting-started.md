@@ -62,15 +62,17 @@ For an `app`-template project, the same call is used; include `install.sh` (opti
 
 - **Bind `0.0.0.0` on `$PORT`** — read `$PORT` from the environment, don't hardcode. `python app.py` with Flask's default `app.run()` binds `localhost` on a fixed port and will fail the check; pass the host and `$PORT` explicitly.
 - **Answer `/` with a 200** — an API whose routes are all under `/api` fails the check even though it runs; add a minimal `/` handler.
-- **Boot within 120s and stay within a small memory budget (~128 MB).** `install.sh` runs under that budget every time the app starts, so keep it lean — a heavy build can run out of memory.
+- **Boot within 120s and stay within a small memory budget (~128 MB)** at run time — the cap applies to the running server, not to the build.
+- **Run as a non-root user.** The container runs as `app`; writable paths are `/app`, `$HOME`, and `/tmp`. All installation must live in `install.sh`, which runs at **build** time as root — installing from `launch.sh` fails with `Permission denied`.
 
-Example minimal pair (`install.sh` fetches deps, then `launch.sh` starts the server):
+Example minimal pair (`install.sh` bakes deps into the image at build time, then `launch.sh` starts the server at boot):
 
 ```sh
 # install.sh
 #!/bin/sh
 set -e
-pip install flask gunicorn
+# Prefer uv over pip — same packages, dramatically faster.
+uv pip install --system --no-cache flask gunicorn
 ```
 ```sh
 # launch.sh
@@ -138,6 +140,6 @@ The preview is live at `https://draft-lisbon-coffee-alice.xhostd.com`.
 
 **`status: failed`** — read the deploy log; surface the failure to the user in plain language and propose a fix.
 
-**Deploy fails right after start / log says `health check returned non-200`** (app template) — the app started but `/` didn't return a 200 on `$PORT` within 120s. Usual causes: the server bound `localhost` or a hardcoded port instead of `0.0.0.0:$PORT`; there's no `/` route (an API under `/api` only); the boot was too slow; or `install.sh`/the process ran out of memory. Fix the bind/`$PORT`, add a `/` handler returning 200, or slim the install.
+**Deploy fails right after start / log says `health check returned non-200`** (app template) — the app started but `/` didn't return a 200 on `$PORT` within 120s. Usual causes: the server bound `localhost` or a hardcoded port instead of `0.0.0.0:$PORT`; there's no `/` route (an API under `/api` only); the boot was too slow; or `launch.sh` hit `Permission denied` — it runs as the non-root `app` user, so installing anything there, or writing outside `/app`/`$HOME`/`/tmp`, crashes it. Fix the bind/`$PORT`, add a `/` handler returning 200, or move the install into `install.sh`.
 
 **Local `git push` succeeded but the deploy is empty / nothing changed** — prod is bound to `branch:master`, but a fresh `git init` defaults to `main`. Push `master` (`git push xhost HEAD:master`) or deploy with `ref` set to your actual branch.

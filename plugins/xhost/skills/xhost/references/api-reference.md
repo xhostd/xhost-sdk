@@ -60,7 +60,7 @@ Create a new app. Provisions a git repository and a `prod` channel automatically
 ```
 
 - `name` (string, required) — Must be a valid DNS label and must not use a reserved prefix (see Hostname Rules)
-- `template` (string, optional, default `"static"`) — Runtime template. Valid values: `"static"` (nginx static file serving), `"app"` (user-provided `install.sh` + `launch.sh`), and `"docker"`. The `app` template runs inside an `xhost-runtime` image with Node 22, Python 3.13, and build tools pre-installed. The user provides `install.sh` (optional, installs dependencies) and `launch.sh` (required, starts the app on `$PORT`). The `docker` template builds the `Dockerfile` at the repo root on every deploy and runs the image with its own `ENTRYPOINT`/`CMD`: the container must listen on `$PORT` (injected) and answer the health check `GET /` with a 2xx. Env vars are injected at run time only — never as build args, so secrets are unavailable during the build and must never be baked into the image. Charged image size (total minus warm-base layers) is capped per plan: free 512 MiB / basic 2 GiB / pro 4 GiB. Warm base images are exempt from the charged size: `node:22-slim`, `node:24-slim`, `python:3.11-slim`, `python:3.12-slim`, `python:3.13-slim`, `debian:trixie-slim`. Docker deploys stream `[build] ...` lines (queue position, build duration, image size vs cap) into the deploy log.
+- `template` (string, optional, default `"static"`) — Runtime template. Valid values: `"static"` (nginx static file serving), `"app"` (user-provided `install.sh` + `launch.sh`), and `"docker"`. The `app` template runs inside an `xhost-runtime` image with Node 22, Python 3.13, and build tools pre-installed. The user provides `install.sh` (optional, installs dependencies — runs at **build** time as root) and `launch.sh` (required, starts the app on `$PORT` — runs at boot as the non-root `app` user, whose writable paths are `/app`, `$HOME`, `/tmp`). The `docker` template builds the `Dockerfile` at the repo root on every deploy and runs the image with its own `ENTRYPOINT`/`CMD`: the container must listen on `$PORT` (injected) and answer the health check `GET /` with a 2xx. Env vars are injected at run time only — never as build args, so secrets are unavailable during the build and must never be baked into the image. Charged image size (total minus warm-base layers) is capped per plan: basic 512 MiB / builder 2 GiB / indie 4 GiB / pro 12 GiB (the same caps apply to the `app` template). Warm base images are exempt from the charged size: `node:22-slim`, `node:24-slim`, `python:3.11-slim`, `python:3.12-slim`, `python:3.13-slim`, `debian:trixie-slim`. Docker deploys stream `[build] ...` lines (queue position, build duration, image size vs cap) into the deploy log.
 
 **Response (200):**
 ```json
@@ -268,6 +268,65 @@ Fetch the deploy log as plain text.
 
 **Errors:**
 - `not_found` (404) — deploy not found or log not available yet
+
+---
+
+## POST /apps/{app_id}/channels/{channel_id}/runtime/log
+
+The **running** app's stdout/stderr — everything after the deploy window that
+the logs endpoint above covers. The log survives a redeploy: when a new
+version replaces a container, the replaced container's log is archived, so an
+older `container_index` still reads back.
+
+The log is written to `/log/app.log` inside a throwaway container (cwd `/log`),
+and the `command` you send runs there. It is a Debian userland with `sh`,
+`bash`, `grep`, `sed`, `awk`, `tail`, `head`, `cut`, `tr`, `sort`, `uniq`,
+`wc`, `find`, `xargs`, `python3`, `node` and `perl` — but **no `jq`, `rg` or
+`less`**. The container has **no network**, gets 30 s, and its combined
+stdout+stderr comes back in `output`, capped at ~256 KiB.
+
+It is a POST, not a GET, so the command never lands in an access log.
+
+**Body:**
+- `command` (optional) — the shell pipeline to run, e.g. `"tail -n 200 app.log"` or `"grep -i error app.log | tail -20"`. Max 4096 chars. **Omit it** and no container is started at all: the reply is the status header only.
+- `container_index` (optional) — read a specific (usually already-replaced) container; default is the newest.
+
+**Response (200):**
+```json
+{
+  "container_index": 3,
+  "container_id": "9f2c...",
+  "container_name": "xhost-1a2b3c4d-5e6f7a8b-00000003",
+  "running": false,
+  "source": "archive",
+  "status": "exited",
+  "exit_code": 137,
+  "oom_killed": true,
+  "restart_count": 2,
+  "started_at": "2026-07-24T09:12:00.000000000Z",
+  "finished_at": "2026-07-24T09:41:13.000000000Z",
+  "available_indices": [1, 2, 3, 4],
+  "log_bytes": 41238,
+  "output": "2026-07-24T09:41:12.880Z Killed\n",
+  "command_exit_code": 0,
+  "timed_out": false,
+  "truncated": false
+}
+```
+
+- `source` — `live` (the container still exists) or `archive` (it was removed; this is the saved copy).
+- `oom_killed` — true means the app exceeded the plan's memory limit.
+- `available_indices` — every container index readable for this channel, live or archived.
+- `exit_code` is **your app's** exit code; `command_exit_code` is your `command`'s (`null` when no command ran or the 30 s limit killed it).
+- `log_bytes` — size of the whole `/log/app.log` your command saw, so you know how much you did not read.
+- `timed_out` / `truncated` — the command hit the 30 s limit (partial output is still returned), or its output was cut at ~256 KiB.
+
+Only stdout/stderr is captured. An app that writes its logs to a file inside
+the container has nothing here — log to stdout/stderr instead.
+
+**Errors:**
+- `not_found` (404) — no runtime log available for this channel (or that `container_index`) yet
+- `service_unavailable` (503) — the host cannot answer right now
 
 ---
 

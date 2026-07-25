@@ -48,16 +48,19 @@ A deploy is only marked **ready** if the app passes a **health check**: within a
 **`app`** — your server must:
 - **Listen on `0.0.0.0` and the injected `$PORT`.** Read `$PORT` from the environment; never hardcode a port. Frameworks that default to `localhost`/a fixed port (Flask `app.run()`, `next dev`, Vite preview, etc.) will fail the check — pass the host and `$PORT` explicitly.
 - **Return HTTP 200 at `/`.** A pure API whose routes live under `/api` 404s the health check even though it runs — add a minimal `/` handler that returns 200.
-- **Boot within 120s** of startup, including `install.sh`.
-- **Stay within a small memory budget (~128 MB).** `install.sh` runs under the same budget every time the app starts, so keep installs and builds lean — heavy bundlers (a full Next.js build, a large `npm install`) can run out of memory and fail the deploy.
+- **Boot within 120s.**
+- **Stay within a small memory budget (~128 MB) at run time.** That cap applies to your running server, not to the build.
+- **Run as a non-root user.** The container runs as `app`; the writable paths are `/app` (your code), `$HOME`, and `/tmp`. Writing anywhere else fails with `Permission denied`.
+- **Put ALL installation in `install.sh`, never in `launch.sh`.** `install.sh` runs once at **build** time, as root, with a generous memory budget — that is the only place a system-wide install (`uv pip install`, `npm install -g`, `apt-get`) can succeed, and where a heavy build (a full Next.js build, a large `npm install`) belongs. `launch.sh` runs at boot as the non-root `app` user, so installing there fails on permissions and burns your 128 MB.
 
-`install.sh` (optional) runs first to fetch dependencies, then `launch.sh` (required) execs your long-running server — both from the repo root. Minimal pair (Python):
+`install.sh` (optional) bakes dependencies into the image at build time; `launch.sh` (required) execs your long-running server at boot — both from the repo root. Minimal pair (Python):
 
 ```sh
-# install.sh — runtime deps go here (runs before launch.sh)
+# install.sh — runtime deps go here (build time, as root)
 #!/bin/sh
 set -e
-pip install flask gunicorn
+# Prefer uv over pip — same packages, dramatically faster resolve + install.
+uv pip install --system --no-cache flask gunicorn
 ```
 ```sh
 # launch.sh — must bind 0.0.0.0:$PORT and serve a 200 at "/"
@@ -82,10 +85,12 @@ COPY . .
 CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app:app --host 0.0.0.0 --port $PORT"]
 ```
 
-- **Charged image size is capped per plan**: free 512 MiB / basic 2 GiB / pro 4 GiB. "Charged" = total image size minus warm-base layers; an over-cap build fails the deploy with the size, cap, and plan named in the log.
+- **Charged image size is capped per plan**: basic 512 MiB / builder 2 GiB / indie 4 GiB / pro 12 GiB (the same caps apply to the `app` template). "Charged" = total image size minus warm-base layers; an over-cap build fails the deploy with the size, cap, and plan named in the log.
 - **Prefer a warm base image** — `node:22-slim`, `node:24-slim`, `python:3.11-slim`, `python:3.12-slim`, `python:3.13-slim`, `debian:trixie-slim` — instant builds, base size exempt from your image cap.
 
-When a deploy ends in `status: failed`, read `get_deploy_log`: `health check returned non-200` means `/` didn't answer 200 on `$PORT` in time (wrong bind/port, no `/` route, slow boot, or running out of memory during `install.sh`).
+When a deploy ends in `status: failed`, read `get_deploy_log`: `health check returned non-200` means `/` didn't answer 200 on `$PORT` in time (wrong bind/port, no `/` route, slow boot, or a boot-time `Permission denied` — `launch.sh` runs as the non-root `app` user, so installing or writing outside `/app`, `$HOME`, `/tmp` crashes it).
+
+When a deploy **succeeds but the app misbehaves later**, `get_deploy_log` is the wrong log — it only covers the build/boot window. Use **`mcp__xhost__get_runtime_log`** with `app_id` and `channel` (a name, e.g. `prod`) for the running app's stdout/stderr. Start with **no `command`**: the status header alone says whether the container is running, its exit code, whether it was OOM-killed (your app exceeded the plan's memory limit), and how many times it restarted. Then pass a `command` — the log is at `/log/app.log` (cwd `/log`) inside a throwaway container and your shell pipeline runs there, so `tail -n 200 app.log`, `grep -i error app.log | tail -20`, `awk`, `sed`, `wc -l` all work. There is no `jq`, `rg` or `less`, no network, and a 30 s limit. If a redeploy already replaced the container, the old one's log is archived — the header lists the readable `container_index` values, so you can still read why the previous version crashed. Only stdout/stderr is captured: an app that writes its logs to a *file* has nothing here.
 
 ## Channels (prod vs preview)
 
@@ -141,7 +146,7 @@ The same token is your **Postgres password** when external database access is en
 
 Rules: the token is short-lived; never commit it into the repo or write it into a file the user might check in. Re-mint by calling `get_credentials` again after expiry.
 
-## All 31 tools
+## All 33 tools
 
 Apps:
 - `list_apps` — List Apps: all apps owned by the user, with channels.
@@ -159,7 +164,9 @@ Files + deploy:
 - `read_file` — Read File: single file contents at a ref.
 - `commit_files` — Commit Files: sparse upsert/delete changeset → `sha`. On GitHub-connected apps this returns an error; push to GitHub instead.
 - `deploy` — Deploy: queue a build of `sha` or `ref` on a channel.
-- `get_deploy_log` — Get Deploy Log: plain-text build/run log.
+- `rewind` — Rewind: redeploy an earlier successful deploy of a channel.
+- `get_deploy_log` — Get Deploy Log: plain-text build/run log of one deploy.
+- `get_runtime_log` — Get Runtime Log: the running app's stdout/stderr AFTER deploy, by channel name. The log is made available as `/log/app.log` (one line per output line, RFC3339 timestamp prefix) inside a throwaway, network-less container, and your `command` — any shell pipeline, e.g. `tail -n 200 app.log` or `grep -i error app.log | tail -20` — runs there and its output comes back. Omit `command` for just the status header (state, exit code, whether it was OOM-killed, restart count). Survives a redeploy — the replaced container's log is archived; pick an older one with `container_index`.
 
 Env:
 - `set_env` — Set Environment Variable: encrypted at rest; `secret: true` for secrets, `channel` for a per-channel override.
