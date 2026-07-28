@@ -194,7 +194,7 @@ Custom domains:
 Port forwarding:
 - `expose_port` — Expose Port: give a channel a public `host:port` carrying raw TCP into the container (database protocols, message brokers, game servers, custom binary protocols — anything HTTPS can't carry). Optional `allow_cidrs` source allowlist; re-calling returns the same address.
 - `list_exposed_ports` — List Exposed Ports: every endpoint across a project's channels, in one call.
-- `unexpose_port` — Unexpose Port: release the endpoint; new connections are refused at once, connections already established keep running until they close on their own (severing those needs a forwarding-node restart), and re-exposing gets a new address.
+- `unexpose_port` — Unexpose Port: release the endpoint; new connections are refused at once, connections already established keep running until they close on their own (to drop those too, `deploy` the channel afterwards — cutover replaces the container, ending every session into the old one), and re-exposing gets a new address.
 
 Git:
 - `get_credentials` — Get Access Credentials: 30-day unified credential (git + Postgres + platform API).

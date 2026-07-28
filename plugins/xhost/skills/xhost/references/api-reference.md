@@ -825,7 +825,7 @@ Each item has the same shape as the expose response.
 
 ## DELETE /apps/{app_id}/channels/{channel_id}/forward
 
-Release the channel's public endpoint. New connections are refused immediately and the address returns to the pool, so anything that reconnects breaks and re-exposing later allocates a **new** address. Connections already established keep running until they close on their own — this does not cut off a session in progress, and severing one takes a forwarding-node restart, which drops every connection on that node. The container keeps running and keeps serving its HTTPS URL. Requires the app's **admin** role (a member gets `not_found`).
+Release the channel's public endpoint. New connections are refused immediately and the address returns to the pool, so anything that reconnects breaks and re-exposing later allocates a **new** address. Connections already established keep running until they close on their own — this does not cut off a session in progress. To drop those as well, `POST /apps/{app_id}/channels/{channel_id}/deploy` for the same channel **after** the release: cutover replaces the container, ending every session into the old one. The container otherwise keeps running and keeps serving its HTTPS URL. Requires the app's **admin** role (a member gets `not_found`).
 
 **Required scope:** `channel:*`
 
