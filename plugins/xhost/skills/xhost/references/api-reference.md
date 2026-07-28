@@ -459,7 +459,7 @@ Set (upsert) an environment variable or secret on an app.
 }
 ```
 
-- `key` (string, required) — Must match `^[A-Z_][A-Z0-9_]*$`. Reserved keys (system-injected) are rejected: `XHOST_USER`, `XHOST_SHA`, `DATABASE_URL`, `DATABASE_HOST`, `DATABASE_PASSWORD`, `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_REGION`.
+- `key` (string, required) — Must match `^[A-Z_][A-Z0-9_]*$`. Reserved keys (system-injected) are rejected: `XHOST_USER`, `XHOST_SHA`, `XHOST_FORWARD_PORT`, `DATABASE_URL`, `DATABASE_HOST`, `DATABASE_PASSWORD`, `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_REGION`.
 - `value` (string, required) — The value to set (stored encrypted).
 - `kind` (string, optional, default `env`) — `env` (plain variable) or `secret`. Secret values are omitted from list responses (metadata only); the single reveal path is `GET /apps/{app_id}/env/{key}/value` (the web console's reveal uses the same endpoint), and each reveal is audit-logged.
 - `channel_id` (string, optional) — Omit for an app-level default; set to a channel id for a per-channel override. At deploy time the channel override wins over the app default, and system-injected keys win over both.
@@ -767,6 +767,75 @@ Detach a custom domain. Removes the routing and stops certificate renewals; the 
 
 ---
 
+## POST /apps/{app_id}/channels/{channel_id}/forward
+
+Give a channel a public `host:port` that carries raw TCP into its container. Idempotent per channel: a channel that already has an endpoint comes back **200** with the same `host`/`port` and its `allow_cidrs` replaced by the submitted list; a fresh allocation is **201**. The address is stable for the life of the exposure, so it is safe to hand out.
+
+Inside the container the process must listen on `0.0.0.0` at the port in `$XHOST_FORWARD_PORT` (a fixed platform-wide port injected into every non-`static` container). xhost pumps the bytes through unmodified — no TLS is added and nothing is authenticated. Requires the app's **admin** role: a member gets `not_found`, never `permission_denied`, so a member cannot tell "this channel has no endpoint" from "I may not manage it". No redeploy is needed either way — a container created before this feature shipped is the one exception: deploy the channel once and it picks the port up, otherwise the endpoint is silently dead (resolve answers 503).
+
+**Required scope:** `channel:*`
+
+**Request body:**
+```json
+{
+  "allow_cidrs": ["203.0.113.0/24"]
+}
+```
+
+- `allow_cidrs` (array of strings, optional, default `[]`) — Source-address allowlist: IPv4/IPv6 networks or bare addresses (`203.0.113.7` is accepted and normalized to `203.0.113.7/32`), at most 16 entries. **Empty or omitted means the whole internet may connect.**
+
+**Response (201 on a fresh allocation, 200 when the channel was already exposed):**
+```json
+{
+  "channel_id": "uuid",
+  "channel": "prod",
+  "host": "fwd-1.xhostd.com",
+  "port": 27431,
+  "allow_cidrs": ["203.0.113.0/24"],
+  "active": true,
+  "created_at": "2025-01-16T10:30:00Z"
+}
+```
+
+- `active` — Whether the endpoint is actually carrying traffic. The row existing is not enough: `false` means the project's port-forwarding toggle is off or the owner's plan no longer includes port forwarding.
+
+**Errors:**
+- `bad_request` (400) — more than 16 `allow_cidrs`, an entry that is not a valid IP address or range, or a `static` app (it runs no process that could accept a connection; use `app` or `docker`)
+- `plan_limit_exceeded` (402) — the owner's plan does not include public TCP endpoints; the message carries the upgrade URL
+- `permission_denied` (403) — the project's port-forwarding toggle is off. It is console-only (project Settings) — there is no MCP tool for it, and the message names the URL a project admin must use
+- `not_found` (404) — app/channel not found, or the caller is below the admin role
+- `conflict` (409) — no forward node has a free port right now
+
+---
+
+## GET /apps/{app_id}/forwards
+
+List every exposed channel of the app, in channel-name order. App-scoped on purpose: one round trip covers the whole project, and there is no per-channel variant. Readable by any member.
+
+**Response (200):**
+```json
+{
+  "forwards": [ ... ]
+}
+```
+
+Each item has the same shape as the expose response.
+
+---
+
+## DELETE /apps/{app_id}/channels/{channel_id}/forward
+
+Release the channel's public endpoint. New connections are refused immediately and the address returns to the pool, so anything that reconnects breaks and re-exposing later allocates a **new** address. Connections already established keep running until they close on their own — this does not cut off a session in progress, and severing one takes a forwarding-node restart, which drops every connection on that node. The container keeps running and keeps serving its HTTPS URL. Requires the app's **admin** role (a member gets `not_found`).
+
+**Required scope:** `channel:*`
+
+**Response:** 204 No Content
+
+**Errors:**
+- `not_found` (404) — app/channel not found, the channel has no endpoint, or the caller is below the admin role
+
+---
+
 ## POST /apps/{app_id}/github/sync
 
 For apps connected to a GitHub source: fetch the latest GitHub commits into the app's internal xhost mirror without deploying. Deploys auto-sync anyway; use this to refresh the mirror or surface sync errors on their own. Requires the admin role (or higher) on the app.
@@ -1063,7 +1132,7 @@ The `<name>` portion (when not `*`) must match: `^[A-Za-z0-9][A-Za-z0-9/_\-\.]*$
 | `token_invalid` | 401 | Token does not exist or is malformed |
 | `token_revoked` | 401 | Token has been revoked |
 | `scope_denied` | 403 | Token lacks the required scope |
-| `permission_denied` | 403 | Admin privileges required |
+| `permission_denied` | 403 | Action not allowed for this caller or project (admin privileges required, or a console-only project switch such as port forwarding is off) |
 | `admin_not_configured` | 403 | Server admin user not set up |
 | `not_found` | 404 | Resource does not exist or is not owned by caller |
 | `bad_request` | 400 | Validation failure (see message for details) |
