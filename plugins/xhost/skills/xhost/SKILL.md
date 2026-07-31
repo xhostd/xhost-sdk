@@ -41,13 +41,19 @@ Naming rules: app and channel names are DNS labels — `^[a-z0-9]([a-z0-9-]*[a-z
 
 ## Runtime contract — what makes a deploy succeed
 
-A deploy is only marked **ready** if the app passes a **health check**: within a time window the platform requests `/` on the app's port and requires an HTTP **2xx** response. A non-2xx (404/500/redirect-loop), or nothing listening on `$PORT`, fails the deploy regardless of whether the app "works." This is the most common reason a first deploy fails — design for it up front.
+A deploy is only marked **ready** if the app passes a **health check**, and there are **two ways to pass it** — whichever happens first within the time window:
+
+1. **Answer HTTP.** The platform requests `/` on the app's port and accepts a **2xx**. A non-2xx (404/500/redirect-loop) fails.
+2. **Create the readiness file.** Create the file whose path is in the injected `$XHOST_READY_FILE` env var. Nothing else about it matters — it can be empty; the platform only checks that it exists.
+
+Use (1) for anything that serves HTTP. Use (2) when the app has no web surface at all — a queue consumer, a cron-style daemon, a stream processor — instead of adding a dummy HTTP listener just to satisfy the platform. Signal it once the app is genuinely doing its job (the consumer loop is subscribed and running), never as the first line of your start command. Such a channel still gets its hostname and URL; that URL just returns 502, which is expected.
+
+If neither signal arrives in time the deploy fails regardless of whether the app "works." This is the most common reason a first deploy fails — design for it up front.
 
 **`static`** — the committed files are served directly from the **repo root**. Put `index.html` at the root (it answers `/`). No build runs; commit the final HTML/CSS/JS, not un-built sources. Health window ~10s.
 
-**`app`** — your server must:
-- **Listen on `0.0.0.0` and the injected `$PORT`.** Read `$PORT` from the environment; never hardcode a port. Frameworks that default to `localhost`/a fixed port (Flask `app.run()`, `next dev`, Vite preview, etc.) will fail the check — pass the host and `$PORT` explicitly.
-- **Return HTTP 200 at `/`.** A pure API whose routes live under `/api` 404s the health check even though it runs — add a minimal `/` handler that returns 200.
+**`app`** — your process must:
+- **Signal readiness one of the two ways.** If it serves HTTP: **listen on `0.0.0.0` and the injected `$PORT`** (read `$PORT` from the environment; never hardcode a port — frameworks that default to `localhost`/a fixed port, Flask `app.run()`, `next dev`, Vite preview, etc., will fail the check unless you pass the host and `$PORT` explicitly) and **return HTTP 200 at `/`** (a pure API whose routes live under `/api` 404s the health check even though it runs — add a minimal `/` handler that returns 200). If it does not serve HTTP: **create `$XHOST_READY_FILE`** once it is running, e.g. `open(os.environ["XHOST_READY_FILE"], "w").close()` in Python or `fs.closeSync(fs.openSync(process.env.XHOST_READY_FILE, "w"))` in Node — or `touch "$XHOST_READY_FILE"` from `launch.sh` if the process has no natural hook, placed as late as possible.
 - **Boot within 120s.**
 - **Stay within a small memory budget (~128 MB) at run time.** That cap applies to your running server, not to the build.
 - **Run as a non-root user.** The container runs as `app`; the writable paths are `/app` (your code), `$HOME`, and `/tmp`. Writing anywhere else fails with `Permission denied`.
@@ -63,16 +69,25 @@ set -e
 uv pip install --system --no-cache flask gunicorn
 ```
 ```sh
-# launch.sh — must bind 0.0.0.0:$PORT and serve a 200 at "/"
+# launch.sh — bind 0.0.0.0:$PORT and serve a 200 at "/"
 #!/bin/sh
 set -e
 exec gunicorn --bind "0.0.0.0:$PORT" app:app
 # node equivalent: exec node server.js  (server.js listens on process.env.PORT, host 0.0.0.0)
 ```
 
+A worker with no HTTP surface uses the other signal instead — same file, no port:
+
+```sh
+# launch.sh — a queue consumer; readiness is the file, not a port
+#!/bin/sh
+set -e
+exec python worker.py   # worker.py creates $XHOST_READY_FILE once its loop is running
+```
+
 **`docker`** — the repo has a `Dockerfile` at its **root**; xhost builds it on every deploy and runs the resulting image with pure Docker semantics — your image's own `ENTRYPOINT`/`CMD` runs (no `install.sh`/`launch.sh`). The contract:
 
-- **Listen on `0.0.0.0` and the injected `$PORT`**, and **return 2xx at `GET /`** — the same health check as `app`.
+- **Signal readiness one of the two ways** — **listen on `0.0.0.0` and the injected `$PORT`** and **return 2xx at `GET /`**, or **create `$XHOST_READY_FILE`** if the image has no HTTP surface. Same health check as `app`. The file signal needs no shell in the image: a distroless worker can just `open()` the path from its own code.
 - **Env vars are injected at run time only, NEVER as build args.** Secrets are not available during the build and must never be baked into an image — read all config from the environment at startup.
 - **Run migrations in the image's start command**, not at build time (the database is only reachable at run time):
 
@@ -88,7 +103,7 @@ CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app:app --host 0.0.0.0 --
 - **Charged image size is capped per plan**: basic 512 MiB / builder 2 GiB / indie 4 GiB / pro 12 GiB (the same caps apply to the `app` template). "Charged" = total image size minus warm-base layers; an over-cap build fails the deploy with the size, cap, and plan named in the log.
 - **Prefer a warm base image** — `node:22-slim`, `node:24-slim`, `python:3.11-slim`, `python:3.12-slim`, `python:3.13-slim`, `debian:trixie-slim` — instant builds, base size exempt from your image cap.
 
-When a deploy ends in `status: failed`, read `get_deploy_log`: `health check returned non-200` means `/` didn't answer 200 on `$PORT` in time (wrong bind/port, no `/` route, slow boot, or a boot-time `Permission denied` — `launch.sh` runs as the non-root `app` user, so installing or writing outside `/app`, `$HOME`, `/tmp` crashes it).
+When a deploy ends in `status: failed`, read `get_deploy_log`: `health check failed for container … no 2xx/3xx response at GET / … and no readiness file created at $XHOST_READY_FILE` means **neither** signal arrived in time — `/` didn't answer 200 on `$PORT` (wrong bind/port, no `/` route, slow boot) and no `$XHOST_READY_FILE` was created, or the app crashed before either could happen (a boot-time `Permission denied` — `launch.sh` runs as the non-root `app` user, so installing or writing outside `/app`, `$HOME`, `/tmp` crashes it).
 
 When a deploy **succeeds but the app misbehaves later**, `get_deploy_log` is the wrong log — it only covers the build/boot window. Use **`mcp__xhost__get_runtime_log`** with `app_id` and `channel` (a name, e.g. `prod`) for the running app's stdout/stderr. Start with **no `command`**: the status header alone says whether the container is running, its exit code, whether it was OOM-killed (your app exceeded the plan's memory limit), and how many times it restarted. Then pass a `command` — the log is at `/log/app.log` (cwd `/log`) inside a throwaway container and your shell pipeline runs there, so `tail -n 200 app.log`, `grep -i error app.log | tail -20`, `awk`, `sed`, `wc -l` all work. There is no `jq`, `rg` or `less`, no network, and a 30 s limit. If a redeploy already replaced the container, the old one's log is archived — the header lists the readable `container_index` values, so you can still read why the previous version crashed. Only stdout/stderr is captured: an app that writes its logs to a *file* has nothing here.
 
@@ -106,7 +121,7 @@ URL format:
 
 ## Common follow-ups
 
-- **Env vars & secrets:** `mcp__xhost__set_env` (`app_id`, `key`, `value`, optional `secret: true`, optional `channel` name) and `mcp__xhost__delete_env` (`app_id`, `key`, optional `channel`). Without `channel` the value is an app-level default; with it, a per-channel override that wins at deploy time. `mcp__xhost__list_env` (`app_id`, optional `channel`) lists entries — with `channel` it's the resolved view (`scope` = `app` or `channel`); plain values come back in cleartext, but **secret values are never returned via MCP** (metadata only — a secret can be revealed via the web console or the HTTP API `GET /apps/{app_id}/env/{key}/value`, and each reveal is audit-logged). `mcp__xhost__get_deploy_env` (`app_id`, `channel`, `deploy_id`) shows the env a past deploy ran with (secrets masked, system-injected keys by name only). Keys must match `^[A-Z_][A-Z0-9_]*$`. Reserved (don't try to set): `XHOST_USER`, `XHOST_SHA`, `XHOST_FORWARD_PORT`, `DATABASE_URL`, `DATABASE_HOST`, `DATABASE_PASSWORD`, `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_REGION`. Every channel automatically gets `DATABASE_URL` pointing at a per-channel Postgres schema — read it from `process.env` (or equivalent); don't ask the user for a connection string.
+- **Env vars & secrets:** `mcp__xhost__set_env` (`app_id`, `key`, `value`, optional `secret: true`, optional `channel` name) and `mcp__xhost__delete_env` (`app_id`, `key`, optional `channel`). Without `channel` the value is an app-level default; with it, a per-channel override that wins at deploy time. `mcp__xhost__list_env` (`app_id`, optional `channel`) lists entries — with `channel` it's the resolved view (`scope` = `app` or `channel`); plain values come back in cleartext, but **secret values are never returned via MCP** (metadata only — a secret can be revealed via the web console or the HTTP API `GET /apps/{app_id}/env/{key}/value`, and each reveal is audit-logged). `mcp__xhost__get_deploy_env` (`app_id`, `channel`, `deploy_id`) shows the env a past deploy ran with (secrets masked, system-injected keys by name only). Keys must match `^[A-Z_][A-Z0-9_]*$`. Reserved (don't try to set): `XHOST_USER`, `XHOST_SHA`, `XHOST_HTTP_PORT`, `PORT`, `XHOST_FORWARD_PORT`, `XHOST_READY_FILE`, `DATABASE_URL`, `DATABASE_HOST`, `DATABASE_PASSWORD`, `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_REGION`. Every channel automatically gets `DATABASE_URL` pointing at a per-channel Postgres schema — read it from `process.env` (or equivalent); don't ask the user for a connection string.
 - **Usage stats:** `mcp__xhost__get_app_stats` (`app_name`, optional `channel`, `window` ∈ `24h`/`7d`/`30d`).
 - **Snapshots:** every non-static deploy auto-snapshots Postgres beforehand. `mcp__xhost__list_channel_snapshots` (`app_name`, `channel`) lists them newest-first; `mcp__xhost__restore_channel_db` (`app_name`, `channel`, `snapshot_id`) rolls the channel's database back to that snapshot. Refuses `prod` unless `XHOST_ALLOW_PROD_RESTORE=1` is set on the app.
 - **Object storage (S3-compatible):** auto-provisioned per channel (like the database — no enable step), for unstructured blobs (uploads, generated assets, exports). `mcp__xhost__get_blob_credentials` (`app_name`, `channel`) returns the endpoint/bucket/key pair, and `mcp__xhost__get_blob_usage` (`app_name`, `channel`) reports bytes used. Deploys inject `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_REGION` — point any S3 SDK at those env vars rather than constructing them. Snapshot **restore** has no MCP tool but is available via the dashboard or the HTTP API (`POST .../blob/restore`); the **external-access** toggle is dashboard-only. Both are kept off MCP because a data rollback or making storage public is a deliberate human action.
@@ -214,3 +229,8 @@ Export (takeout):
 
 - `references/getting-started.md` — End-to-end worked example (non-technical user, agent-driven).
 - `references/api-reference.md` — Underlying HTTP API surface for deep dives.
+- `references/guide-index.md` — Index of the worked deployment recipes: what each one deploys, and how a recipe is structured.
+
+Every `references/guide-*.md` is a worked, end-to-end deployment recipe,
+**generated** from `docs/guides/` by `scripts/build-docs.py`. Never hand-edit
+one — edit the source and rebuild (design/DOCS.md).

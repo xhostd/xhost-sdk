@@ -58,10 +58,10 @@ mcp__xhost__commit_files(
 
 Returns `{"sha": "abc123…"}`. Only include files that are being added or changed; absent paths are left alone; pass `null` as a value to delete a file.
 
-For an `app`-template project, the same call is used; include `install.sh` (optional) and `launch.sh` (required) in the changeset. The deploy only succeeds if the app passes a health check: within 120s the platform requests `/` on the app's port and needs an HTTP **200**. So the server must:
+For an `app`-template project, the same call is used; include `install.sh` (optional) and `launch.sh` (required) in the changeset. The deploy only succeeds if the app signals readiness within 120s, and there are **two ways to do that** — whichever comes first. So the process must:
 
-- **Bind `0.0.0.0` on `$PORT`** — read `$PORT` from the environment, don't hardcode. `python app.py` with Flask's default `app.run()` binds `localhost` on a fixed port and will fail the check; pass the host and `$PORT` explicitly.
-- **Answer `/` with a 200** — an API whose routes are all under `/api` fails the check even though it runs; add a minimal `/` handler.
+- **Either serve HTTP:** **bind `0.0.0.0` on `$PORT`** — read `$PORT` from the environment, don't hardcode. `python app.py` with Flask's default `app.run()` binds `localhost` on a fixed port and will fail the check; pass the host and `$PORT` explicitly — and **answer `/` with a 200**: an API whose routes are all under `/api` fails the check even though it runs; add a minimal `/` handler.
+- **Or create `$XHOST_READY_FILE`** — for a process with no HTTP surface at all (a queue consumer, a cron-style daemon), create the file at the injected path instead of adding a dummy listener; it can be empty. Do it once the work loop is genuinely running, not at the top of `launch.sh`. Such a project keeps its hostname, and that URL returns 502 — expected, not a failure.
 - **Boot within 120s and stay within a small memory budget (~128 MB)** at run time — the cap applies to the running server, not to the build.
 - **Run as a non-root user.** The container runs as `app`; writable paths are `/app`, `$HOME`, and `/tmp`. All installation must live in `install.sh`, which runs at **build** time as root — installing from `launch.sh` fails with `Permission denied`.
 
@@ -140,6 +140,6 @@ The preview is live at `https://draft-lisbon-coffee-alice.xhostd.com`.
 
 **`status: failed`** — read the deploy log; surface the failure to the user in plain language and propose a fix.
 
-**Deploy fails right after start / log says `health check returned non-200`** (app template) — the app started but `/` didn't return a 200 on `$PORT` within 120s. Usual causes: the server bound `localhost` or a hardcoded port instead of `0.0.0.0:$PORT`; there's no `/` route (an API under `/api` only); the boot was too slow; or `launch.sh` hit `Permission denied` — it runs as the non-root `app` user, so installing anything there, or writing outside `/app`/`$HOME`/`/tmp`, crashes it. Fix the bind/`$PORT`, add a `/` handler returning 200, or move the install into `install.sh`.
+**Deploy fails right after start / log says `health check failed for container …`** (app template) — neither readiness signal arrived within 120s: `/` didn't return a 2xx on `$PORT` *and* no file was created at `$XHOST_READY_FILE`. Usual causes: the server bound `localhost` or a hardcoded port instead of `0.0.0.0:$PORT`; there's no `/` route (an API under `/api` only); the boot was too slow; or `launch.sh` hit `Permission denied` — it runs as the non-root `app` user, so installing anything there, or writing outside `/app`/`$HOME`/`/tmp`, crashes it. Fix the bind/`$PORT`, add a `/` handler returning 200, or move the install into `install.sh`. If the project has no HTTP surface at all, create `$XHOST_READY_FILE` once its work loop is running instead of adding a listener.
 
 **Local `git push` succeeded but the deploy is empty / nothing changed** — prod is bound to `branch:master`, but a fresh `git init` defaults to `main`. Push `master` (`git push xhost HEAD:master`) or deploy with `ref` set to your actual branch.
