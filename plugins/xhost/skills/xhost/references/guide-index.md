@@ -29,10 +29,10 @@ not need to read the other guides first.
 | [File uploads](https://docs.xhostd.com/guides/recipes-blob) | An app that stores files in object storage | Ready |
 | [Sign in with Google](https://docs.xhostd.com/guides/recipes-oauth) | An app that knows who its visitors are | Ready |
 | [Raw TCP](https://docs.xhostd.com/guides/recipes-port-forwarding) | A public `host:port` for a service that is not HTTP | Ready |
+| [Background worker](https://docs.xhostd.com/guides/recipes-worker) | A long-running process, not a web server | Ready |
 | [Ship without git](https://docs.xhostd.com/guides/recipes-commit-files) | A site put onto the app by tool call, where there is no shell to run `git` in | Ready |
 | [Best practices](https://docs.xhostd.com/guides/bkm) | The habits that keep a deploy free of surprises | Ready |
 | Custom domain | Your own domain, with HTTPS | Coming soon |
-| Background worker | A long-running process, not a web server | Coming soon |
 
 ## The parts of a recipe
 
@@ -74,10 +74,14 @@ curl -sS https://<app>-<account>.xhostd.com/
 ```
 
 If the command prints your app's response, the recipe worked. If it does not,
-the recipe tells you which check to run next. The
-[Raw TCP](https://docs.xhostd.com/guides/recipes-port-forwarding) recipe is the
-exception. It deploys a service that uses no HTTP. It proves itself with a
-socket round trip to a `host:port`. Its HTTPS hostname returns 502 by design.
+the recipe tells you which check to run next.
+
+Two recipes end in another way, because each one deploys a service that uses no
+HTTP. The [Raw TCP](https://docs.xhostd.com/guides/recipes-port-forwarding)
+recipe proves itself with a socket round trip to a `host:port`. The
+[Background worker](https://docs.xhostd.com/guides/recipes-worker) recipe has no
+address that answers, so it proves itself with `get_runtime_log`, which counts
+the work the worker did. The HTTPS hostname of each one returns 502 by design.
 
 > A recipe shows the correct path, and also the two or three usual faults. A
 > recipe is not a reference. [MCP Tools](https://docs.xhostd.com/mcp-tools) and

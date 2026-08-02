@@ -244,6 +244,7 @@ Export (takeout):
 - `references/guide-recipes-blob.md` — Blob storage: the injected `S3_*` env, plain unprefixed keys scoped per channel, uploading and serving objects with boto3.
 - `references/guide-recipes-oauth.md` — Sign in with Google: verifying the `__Host-xhost_id` cookie, and why the platform gates no route for you.
 - `references/guide-recipes-port-forwarding.md` — Raw TCP: a public `host:port` on `XHOST_FORWARD_PORT`, the console-only app toggle, and signalling readiness without serving HTTP.
+- `references/guide-recipes-worker.md` — Background worker: a long-running loop that serves no HTTP, readiness by `$XHOST_READY_FILE`, and how to prove progress from the runtime log.
 - `references/guide-recipes-commit-files.md` — Ship without git: the `commit_files` fallback for a runtime with no shell, sparse changesets, and `null` deletes.
 - `references/guide-bkm.md` — Best-known methods: debugging with `get_runtime_log`, stack choices, upgrade-safe code, secrets, budgets, quota errors, and the undo path.
 

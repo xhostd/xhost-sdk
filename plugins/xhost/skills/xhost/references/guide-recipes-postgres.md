@@ -29,7 +29,7 @@ start. The first boot of a new app applies every migration in order against
 an empty database. A later deploy applies only the migrations that are new.
 There is no manual step and no separate migration job.
 
-Before each of those deploys, the platform saves a snapshot of the schema.
+Before each of those deploys, the platform saves a snapshot of the database.
 The snapshot gives you a one-call undo if the deploy is wrong.
 
 The worked example is live at
@@ -48,11 +48,10 @@ ship in one commit. The two guides divide the prose only, never the deploy.
 
 ### How the app connects
 
-The container's environment holds two values, and you set neither of them.
-The first value is `DATABASE_URL`. The second value is the connection's
-`search_path`, which xhost pins to the channel's own schema. The pinned
-search path lets your SQL use plain table names — `notes`, not
-`someschema.notes`.
+xhost sets one value for the database connection, and you set nothing. The
+value is `DATABASE_URL`. Your channel owns a whole database, and your data is
+in the standard `public` schema of that database. Your SQL therefore uses
+plain table names — `notes`, not `someschema.notes`.
 
 xhost gives you `DATABASE_URL` with the bare `postgresql://` scheme:
 
@@ -359,9 +358,9 @@ Seven lines of that deploy log tell you what the data layer did.
 ```
 
 **`channel snapshot saved`** is automatic. Every non-static deploy saves a
-snapshot of the channel's Postgres schema *before* the new container starts.
+snapshot of the channel's Postgres database *before* the new container starts.
 The snapshot is thus the state immediately before that deploy's changes. This
-snapshot rounds to 0.00 MB because the schema is still empty on the app's
+snapshot rounds to 0.00 MB because the database is still empty on the app's
 first deploy. The snapshot list below gives the true size: 2159 bytes.
 
 **The two `Running upgrade` lines** show the migrations at work. They run in
@@ -455,12 +454,13 @@ restore_channel_db(app_name="recipe-docker-pg",
                    snapshot_id="96879c2a-d99f-4a97-ab13-0de58442bd5f")
 ```
 
-The restore runs in stages. xhostd first gives the live schema a different
-name. It then restores the snapshot into a new schema. It drops the renamed
-copy only after the restore succeeds, so a failed restore loses nothing. The
-call returns the channel's Postgres status, which is `ready` after the swap.
-The same `DATABASE_URL` continues to work with no new deploy. Only the data
-changes: it is back at the state of the snapshot.
+The restore runs in one transaction on the server. xhostd first empties the
+database's `public` schema, then it writes the snapshot's contents into that
+schema. The server rolls the whole transaction back if any step fails, so a
+failed restore loses nothing. The call returns the channel's Postgres status,
+which is `ready` when the restore succeeds. The same `DATABASE_URL` continues
+to work with no new deploy. Only the data changes: it is back at the state of
+the snapshot.
 
 ```bash
 $ curl -sS https://recipe-docker-pg-docs.xhostd.com/
