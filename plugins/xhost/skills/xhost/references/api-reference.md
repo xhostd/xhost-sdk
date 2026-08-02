@@ -599,19 +599,18 @@ Roll the channel's database back to a prior snapshot. A failed restore loses not
 **Request body:**
 ```json
 {
-  "confirm_schema_name": "ch_<channel-uuid-hex>",
+  "confirm_db_name": "ch_<channel-uuid-hex>",
   "snapshot_id": "uuid"
 }
 ```
 
-- `confirm_schema_name` (string, required) — Must exactly match the channel's `schema_name` (from `GET .../postgres`); mismatches are rejected.
+- `confirm_db_name` (string, required) — Must exactly match the channel's `db_name` (from `GET .../postgres`); mismatches are rejected.
 - `snapshot_id` (string, required) — A snapshot id from the snapshots list.
 
 **Response (200):** The channel's updated Postgres status:
 ```json
 {
   "db_name": "ch_...",
-  "schema_name": "ch_...",
   "role_name": "r_...",
   "status": "ready",
   "last_error": null,
@@ -626,7 +625,7 @@ Roll the channel's database back to a prior snapshot. A failed restore loses not
 ```
 
 **Errors:**
-- `bad_request` (400) — `invalid_confirmation` (`schema_name` mismatch)
+- `bad_request` (400) — `invalid_confirmation` (`db_name` mismatch)
 - `permission_denied` (403) — `prod_restore_blocked`: restoring the `prod` channel requires the app env `XHOST_ALLOW_PROD_RESTORE=1`
 - `not_found` (404) — snapshot not found, or its file is missing
 - `conflict` (409) — `channel_busy` (a deploy is queued/running), or the account is mid-move
