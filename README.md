@@ -44,13 +44,18 @@ The single `/xhost` skill handles account setup, app creation, deploys, previews
 - **Static sites** — HTML/CSS/JS served by nginx
 - **Node.js apps** — Express, Next.js, Fastify, Vite (provide `install.sh` + `launch.sh`)
 - **Python apps** — FastAPI, Flask, Django (provide `install.sh` + `launch.sh`)
+- **Docker** — your own `Dockerfile`, built from a warm base image
 - **Any language** — if the runtime is in the base image, just write your scripts
+
+## Recipes
+
+<https://docs.xhostd.com/guides> holds one complete recipe for each shape of app: every file, the exact calls, and the failure modes of that shape. Read the recipe for your shape before you write the code. The plugin carries the same recipes offline, under `plugins/xhost/skills/xhost/references/`.
 
 ## How it works
 
 1. You push code to xhost's git server
 2. You trigger a deploy (explicitly, via `/xhost` or the API)
-3. xhost runs your `install.sh` (install deps) then `launch.sh` (start app on `$PORT`)
+3. xhost runs your `install.sh` (install deps) then `launch.sh` (start app on `$XHOST_HTTP_PORT`)
 4. Your app is live over HTTPS with a wildcard cert
 
 ## Requirements

@@ -60,7 +60,7 @@ Create a new app. Provisions a git repository and a `prod` channel automatically
 ```
 
 - `name` (string, required) — Must be a valid DNS label and must not use a reserved prefix (see Hostname Rules)
-- `template` (string, optional, default `"static"`) — Runtime template. Valid values: `"static"` (nginx static file serving), `"app"` (user-provided `install.sh` + `launch.sh`), and `"docker"`. The `app` template runs inside an `xhost-runtime` image with Node 22, Python 3.13, and build tools pre-installed. The user provides `install.sh` (optional, installs dependencies — runs at **build** time as root) and `launch.sh` (required, starts the app on `$PORT` — runs at boot as the non-root `app` user, whose writable paths are `/app`, `$HOME`, `/tmp`). The `docker` template builds the `Dockerfile` at the repo root on every deploy and runs the image with its own `ENTRYPOINT`/`CMD`. Both non-`static` templates pass the health check on **either** of two signals, whichever arrives first: listen on `$PORT` (injected) and answer `GET /` with a 2xx, **or** create the file named by `$XHOST_READY_FILE` (also injected — a per-deploy path directly under `/tmp`, so no `mkdir` and no shell are needed). The second signal exists so a channel with no HTTP surface — a queue consumer, cron daemon or stream processor — needs no dummy listener; create it once the app is actually running, not at the top of the start command. Such a channel keeps its hostname and route, and that URL returns 502, which is expected. Env vars are injected at run time only — never as build args, so secrets are unavailable during the build and must never be baked into the image. Charged image size (total minus warm-base layers) is capped per plan: basic 512 MiB / builder 2 GiB / indie 4 GiB / pro 12 GiB (the same caps apply to the `app` template). Warm base images are exempt from the charged size: `node:22-slim`, `node:24-slim`, `python:3.11-slim`, `python:3.12-slim`, `python:3.13-slim`, `debian:trixie-slim`. Docker deploys stream `[build] ...` lines (queue position, build duration, image size vs cap) into the deploy log.
+- `template` (string, optional, default `"static"`) — Runtime template. Valid values: `"static"` (nginx static file serving), `"app"` (user-provided `install.sh` + `launch.sh`), and `"docker"`. The `app` template runs inside an `xhost-runtime` image with Node 22, Python 3.13, and build tools pre-installed. The user provides `install.sh` (optional, installs dependencies — runs at **build** time as root) and `launch.sh` (required, starts the app on `$XHOST_HTTP_PORT` — runs at boot as the non-root `app` user, whose writable paths are `/app`, `$HOME`, `/tmp`). The `docker` template builds the `Dockerfile` at the repo root on every deploy and runs the image with its own `ENTRYPOINT`/`CMD`. Both non-`static` templates pass the health check on **either** of two signals, whichever arrives first: listen on `$XHOST_HTTP_PORT` (injected; `$PORT` is still injected at the same value, so existing apps keep working, but it is deprecated and will be removed — use `$XHOST_HTTP_PORT` in new code) and answer `GET /` with a 2xx, **or** create the file named by `$XHOST_READY_FILE` (also injected — a per-deploy path directly under `/tmp`, so no `mkdir` and no shell are needed). The second signal exists so a channel with no HTTP surface — a queue consumer, cron daemon or stream processor — needs no dummy listener; create it once the app is actually running, not at the top of the start command. Such a channel keeps its hostname and route, and that URL returns 502, which is expected. Env vars are injected at run time only — never as build args, so secrets are unavailable during the build and must never be baked into the image. Charged image size (total minus warm-base layers) is capped per plan: basic 512 MiB / builder 2 GiB / indie 4 GiB / pro 12 GiB (the same caps apply to the `app` template). Warm base images are exempt from the charged size: `node:22-slim`, `node:24-slim`, `python:3.11-slim`, `python:3.12-slim`, `python:3.13-slim`, `debian:trixie-slim`. Docker deploys stream `[build] ...` lines (queue position, build duration, image size vs cap) into the deploy log.
 
 **Response (200):**
 ```json
@@ -594,7 +594,7 @@ List a channel's pre-deploy Postgres snapshots, newest first. A snapshot is take
 
 ## POST /apps/{app_id}/channels/{channel_id}/postgres/restore
 
-Roll the channel's schema back to a prior snapshot. Staged: the live schema is renamed aside, the snapshot restores into a fresh schema, and the renamed copy is only dropped after the restore succeeds — a failed restore loses nothing. Each restore is audit-logged.
+Roll the channel's database back to a prior snapshot. A failed restore loses nothing — the channel's data is left untouched. Each restore is audit-logged.
 
 **Request body:**
 ```json
@@ -604,13 +604,13 @@ Roll the channel's schema back to a prior snapshot. Staged: the live schema is r
 }
 ```
 
-- `confirm_schema_name` (string, required) — Must exactly match the channel's schema name (from `GET .../postgres`); mismatches are rejected.
+- `confirm_schema_name` (string, required) — Must exactly match the channel's `schema_name` (from `GET .../postgres`); mismatches are rejected.
 - `snapshot_id` (string, required) — A snapshot id from the snapshots list.
 
 **Response (200):** The channel's updated Postgres status:
 ```json
 {
-  "db_name": "u_...",
+  "db_name": "ch_...",
   "schema_name": "ch_...",
   "role_name": "r_...",
   "status": "ready",
@@ -626,7 +626,7 @@ Roll the channel's schema back to a prior snapshot. Staged: the live schema is r
 ```
 
 **Errors:**
-- `bad_request` (400) — `invalid_confirmation` (schema name mismatch)
+- `bad_request` (400) — `invalid_confirmation` (`schema_name` mismatch)
 - `permission_denied` (403) — `prod_restore_blocked`: restoring the `prod` channel requires the app env `XHOST_ALLOW_PROD_RESTORE=1`
 - `not_found` (404) — snapshot not found, or its file is missing
 - `conflict` (409) — `channel_busy` (a deploy is queued/running), or the account is mid-move
@@ -892,7 +892,7 @@ List the app's activity events (attributed audit trail of project mutations: mem
 
 ## POST /exports
 
-Queue a downloadable export (takeout) of a channel's or app's data: deployed code, a Postgres schema dump, and (when small enough) the channel's object-storage files. Env variable keys are included as blank placeholders — secret values are never exported. One non-terminal export per user at a time.
+Queue a downloadable export (takeout) of a channel's or app's data: deployed code, a Postgres dump of the channel's database, and (when small enough) the channel's object-storage files. Env variable keys are included as blank placeholders — secret values are never exported. One non-terminal export per user at a time.
 
 **Request body:**
 ```json

@@ -1,6 +1,6 @@
 # Getting Started with xhost — Worked Example
 
-This walks through what an agent does, end-to-end, when a non-technical user says something like *"build me a little site that lists my favourite coffee shops in Lisbon and put it online"*. No tokens, no copy-pasting, no shell.
+This walks through what an agent does, end-to-end, when a non-technical user says something like *"build me a little site that lists my favourite coffee shops in Lisbon and put it online"*. Nothing for the user to install, paste or configure — the agent mints the credential and runs the commands.
 
 ## 0. Prerequisites
 
@@ -43,24 +43,23 @@ Remember `app_id` (`f1e2…`) and the prod channel's `id` (`c0a1…`).
 
 ## 3. Write the site
 
-Build the file contents as strings. Then commit them all in one MCP call:
+Write the files into a working directory, then push them to the app's own repo. **`git push` → `deploy` is the standard path**, for the first commit and every one after it: a push sends only the diff, so each later edit stays incremental instead of round-tripping whole file contents through a tool call.
+
+The five mechanical steps are in **Pushing code with git** in SKILL.md. In short: call `mcp__xhost__get_credentials` for a 30-day token — one `xh_` secret that is the git password, the Postgres password and the platform API bearer at once — put it in the **password** field of the remote URL (`repo_url` came back in step 2), and push:
 
 ```
-mcp__xhost__commit_files(
-  app_id="f1e2…",
-  message="initial site",
-  files={
-    "index.html": "<!doctype html><html><head><title>Lisbon Coffee</title>…",
-    "style.css": "body{font-family:system-ui;max-width:40rem;margin:2rem auto}…",
-  },
-)
+git init && git add -A && git commit -m "initial site"
+git remote add xhost "https://alice:<token>@git.xhostd.com/alice/lisbon-coffee.git"
+git push xhost HEAD:master
 ```
 
-Returns `{"sha": "abc123…"}`. Only include files that are being added or changed; absent paths are left alone; pass `null` as a value to delete a file.
+`HEAD:master` because prod is bound to `branch:master` while a fresh `git init` defaults to `main`. Never write the token into a file the user might commit. **Pushing stores the code; it does not deploy** — that is step 4.
 
-For an `app`-template project, the same call is used; include `install.sh` (optional) and `launch.sh` (required) in the changeset. The deploy only succeeds if the app signals readiness within 120s, and there are **two ways to do that** — whichever comes first. So the process must:
+**Fallback, one case only:** when git is not available on the machine you are working on — a runtime with no shell, such as the claude.ai connector — use `mcp__xhost__commit_files(app_id, message, files, ref="master")` instead. `files` is a `{path: content-or-null}` map: a string upserts, `null` deletes, and a path you don't name is left alone, so send only what is changing. It returns `{"sha": "abc123…"}`, which is what you then deploy. On GitHub-connected apps it is refused — push to GitHub instead. Worked example: <https://docs.xhostd.com/guides/recipes-commit-files>.
 
-- **Either serve HTTP:** **bind `0.0.0.0` on `$PORT`** — read `$PORT` from the environment, don't hardcode. `python app.py` with Flask's default `app.run()` binds `localhost` on a fixed port and will fail the check; pass the host and `$PORT` explicitly — and **answer `/` with a 200**: an API whose routes are all under `/api` fails the check even though it runs; add a minimal `/` handler.
+For an `app`-template project the push is the same; the repo needs `install.sh` (optional) and `launch.sh` (required) at its root. The deploy only succeeds if the app signals readiness within 120s, and there are **two ways to do that** — whichever comes first. So the process must:
+
+- **Either serve HTTP:** **bind `0.0.0.0` on `$XHOST_HTTP_PORT`** — read `$XHOST_HTTP_PORT` from the environment, don't hardcode. (`$PORT` is still injected at the same value, so existing apps keep working, but it is deprecated and will be removed — use `$XHOST_HTTP_PORT` in new code.) `python app.py` with Flask's default `app.run()` binds `localhost` on a fixed port and will fail the check; pass the host and `$XHOST_HTTP_PORT` explicitly — and **answer `/` with a 200**: an API whose routes are all under `/api` fails the check even though it runs; add a minimal `/` handler.
 - **Or create `$XHOST_READY_FILE`** — for a process with no HTTP surface at all (a queue consumer, a cron-style daemon), create the file at the injected path instead of adding a dummy listener; it can be empty. Do it once the work loop is genuinely running, not at the top of `launch.sh`. Such a project keeps its hostname, and that URL returns 502 — expected, not a failure.
 - **Boot within 120s and stay within a small memory budget (~128 MB)** at run time — the cap applies to the running server, not to the build.
 - **Run as a non-root user.** The container runs as `app`; writable paths are `/app`, `$HOME`, and `/tmp`. All installation must live in `install.sh`, which runs at **build** time as root — installing from `launch.sh` fails with `Permission denied`.
@@ -78,7 +77,7 @@ uv pip install --system --no-cache flask gunicorn
 # launch.sh
 #!/bin/sh
 set -e
-exec gunicorn --bind "0.0.0.0:$PORT" app:app
+exec gunicorn --bind "0.0.0.0:$XHOST_HTTP_PORT" app:app
 ```
 
 ## 4. Deploy
@@ -87,11 +86,11 @@ exec gunicorn --bind "0.0.0.0:$PORT" app:app
 mcp__xhost__deploy(
   app_id="f1e2…",
   channel_id="c0a1…",
-  sha="abc123…",
+  ref="master",
 )
 ```
 
-Returns `{"deploy_id": "d…", "channel_id": "c0a1…", "status": "queued"}`. Deploys run async.
+Returns `{"deploy_id": "d…", "channel_id": "c0a1…", "status": "queued"}`. Deploys run async. `ref` is a branch name and xhostd resolves it to that branch's current head, so after a push you never need to know the sha; pass `sha="abc123…"` instead to pin an exact commit — which is what you do with the sha `commit_files` returned.
 
 ## 5. Watch the build
 
@@ -109,13 +108,13 @@ Read `hostname` from the prod channel (it was in step 2's response, and `mcp__xh
 
 ## 7. Iterate
 
-For each follow-up change — "add a section for tea shops", "fix the broken link" — call `commit_files` with the changed files, then `deploy` with the returned sha. The same `prod` channel id is reused.
+For each follow-up change — "add a section for tea shops", "fix the broken link" — edit the files in the checkout, `git commit`, `git push xhost HEAD:master`, then `deploy` with `ref="master"`. The same `prod` channel id is reused, and the remote is already configured, so a follow-up is a couple of shell commands and one tool call. This is where the standard path pays: the push carries only the lines that changed, so the tenth edit costs about what the first one did — where a `commit_files` changeset would carry the full text of every file it names, again, every time. On the fallback path (no shell), that is still the loop: `commit_files` with only the changed files, then `deploy` with the sha it returns.
 
 To preview a change without touching production:
 
 ```
 mcp__xhost__create_channel(app_id="f1e2…", name="draft", git_ref_binding="branch:draft")
-mcp__xhost__commit_files(app_id="f1e2…", ref="draft", message="draft tea section", files={…})
+git push xhost HEAD:draft
 mcp__xhost__deploy(app_id="f1e2…", channel_id="<draft channel id>", ref="draft")
 ```
 
@@ -123,10 +122,9 @@ The preview is live at `https://draft-lisbon-coffee-alice.xhostd.com`.
 
 ## 8. Optional extras
 
-- **Env vars & secrets:** `mcp__xhost__set_env(app_id, key="STRIPE_KEY", value="sk_…", secret=True)` — mark credentials `secret=True` (values never readable back through MCP; console-only reveal, audit-logged), add `channel="staging"` for a per-channel override that wins over the app default at deploy time. `mcp__xhost__list_env(app_id, channel=…)` shows the resolved view. Every channel automatically has `DATABASE_URL` for its per-channel Postgres schema; don't set it.
+- **Env vars & secrets:** `mcp__xhost__set_env(app_id, key="STRIPE_KEY", value="sk_…", secret=True)` — mark credentials `secret=True` (values never readable back through MCP; console-only reveal, audit-logged), add `channel="staging"` for a per-channel override that wins over the app default at deploy time. `mcp__xhost__list_env(app_id, channel=…)` shows the resolved view. Every channel automatically has `DATABASE_URL` for its own Postgres database; don't set it.
 - **Custom domain:** `mcp__xhost__add_custom_domain(app_name, channel, domain)` returns an `instructions` field with the exact TXT + CNAME/A records the user needs to add at their registrar — relay it verbatim. After they add the records, call `mcp__xhost__verify_custom_domain` with the same args. HTTPS works automatically once verified.
 - **Google sign-in for parts of the site:** zero-config — no tool to call. `/xhost-auth/*` works on every channel. After sign-in the gateway sets a signed identity cookie `__Host-xhost_id` (an RS256 JWT) on the channel host; the app verifies it against the JWKS at `https://auth.xhostd.com/xhost-auth/jwks` (pin `RS256`, check `iss`/`aud`/`exp`) and gates its own routes. **xhost does identity only, never edge gatekeeping — nothing is blocked at the edge, so every route stays public (anonymous visitors get `200`) until your app verifies the cookie and enforces access itself in code.** Send signed-out users to `/xhost-auth/login?return_to=<path>`. `__Host-xhost_id` is a reserved cookie name. Per-stack verify snippets: <https://docs.xhostd.com/oauth>.
-- **Local git workflow (Claude Code only):** if the user wants to push from a local checkout, call `mcp__xhost__get_credentials`, configure `git remote add xhost https://<username>:<token>@git.xhostd.com/<username>/<app>.git` (token in the password field — any username works), `git push`, then `mcp__xhost__deploy` with `ref="master"`. The token expires after 30 days; the same token is also your Postgres password and platform API bearer.
 
 ## Troubleshooting
 
@@ -140,6 +138,6 @@ The preview is live at `https://draft-lisbon-coffee-alice.xhostd.com`.
 
 **`status: failed`** — read the deploy log; surface the failure to the user in plain language and propose a fix.
 
-**Deploy fails right after start / log says `health check failed for container …`** (app template) — neither readiness signal arrived within 120s: `/` didn't return a 2xx on `$PORT` *and* no file was created at `$XHOST_READY_FILE`. Usual causes: the server bound `localhost` or a hardcoded port instead of `0.0.0.0:$PORT`; there's no `/` route (an API under `/api` only); the boot was too slow; or `launch.sh` hit `Permission denied` — it runs as the non-root `app` user, so installing anything there, or writing outside `/app`/`$HOME`/`/tmp`, crashes it. Fix the bind/`$PORT`, add a `/` handler returning 200, or move the install into `install.sh`. If the project has no HTTP surface at all, create `$XHOST_READY_FILE` once its work loop is running instead of adding a listener.
+**Deploy fails right after start / log says `health check failed for container …`** (app template) — neither readiness signal arrived within 120s: `/` didn't return a 2xx on `$XHOST_HTTP_PORT` *and* no file was created at `$XHOST_READY_FILE`. Usual causes: the server bound `localhost` or a hardcoded port instead of `0.0.0.0:$XHOST_HTTP_PORT`; there's no `/` route (an API under `/api` only); the boot was too slow; or `launch.sh` hit `Permission denied` — it runs as the non-root `app` user, so installing anything there, or writing outside `/app`/`$HOME`/`/tmp`, crashes it. Fix the bind/`$XHOST_HTTP_PORT`, add a `/` handler returning 200, or move the install into `install.sh`. If the project has no HTTP surface at all, create `$XHOST_READY_FILE` once its work loop is running instead of adding a listener.
 
-**Local `git push` succeeded but the deploy is empty / nothing changed** — prod is bound to `branch:master`, but a fresh `git init` defaults to `main`. Push `master` (`git push xhost HEAD:master`) or deploy with `ref` set to your actual branch.
+**`git push` succeeded but the deploy is empty / nothing changed** — prod is bound to `branch:master`, but a fresh `git init` defaults to `main`. Push `master` (`git push xhost HEAD:master`) or deploy with `ref` set to your actual branch.
