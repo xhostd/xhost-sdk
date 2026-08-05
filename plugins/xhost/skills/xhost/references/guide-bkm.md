@@ -385,7 +385,7 @@ channel. It applies the other limits per container or per image.
 | Plan | Channels | Memory per container | Visible cores | Blob storage | Charged image size |
 |---|---|---|---|---|---|
 | basic | 5 | 128 MB | 1 | 1 GiB | 512 MiB |
-| builder | 10 | 512 MB | 2 | 5 GiB | 2 GiB |
+| builder | 10 | 512 MB | 2 | 10 GiB | 2 GiB |
 | indie | 25 | 1024 MB | 4 | 50 GiB | 4 GiB |
 | pro | 75 | 3072 MB | 8 | 150 GiB | 12 GiB |
 

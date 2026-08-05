@@ -62,11 +62,15 @@ fail with a signature error.
 **Only code inside the container can reach that endpoint.** It is an overlay
 address. Nothing on your laptop can route to it.
 
-**`S3_REGION` and `S3_BUCKET` have no effect upstream.** The gateway discards
-the bucket segment that your client sends, and routes only by the key. Thus
-the real upstream bucket and the real region never appear in your container.
-Pass both values, because the SDK needs them. Do not give their values any
-other meaning.
+**Pass `S3_BUCKET` exactly as the platform gives it to you.** The gateway
+compares the bucket name in every request with the channel's own name. Any
+other name gets a 404 `NoSuchBucket`, on a read, a write and a copy alike.
+Read the value from the environment. Do not hardcode it, and do not reuse
+another channel's name.
+
+**`S3_REGION` is a placeholder.** The real upstream region never appears in
+your container. Pass the value, because the SDK needs one. Give it no other
+meaning.
 
 **Keys are plain and have no prefix.** Upstream, the gateway puts every object
 under this channel's own private key prefix. The key `notes.txt` in your code
