@@ -1019,12 +1019,50 @@ Submit free-text feedback to the xhost team about platform friction (many iterat
 ```json
 {
   "id": "uuid",
-  "status": "new"
+  "status": "Received"
 }
 ```
 
 **Errors:**
-- `bad_request` (400) — empty message or message longer than 4000 characters
+- `bad_request` (400) — empty message, message longer than 4000 characters, or the account reached its report limit (1000 by default; an operator raises or lowers it per account, and the message names the limit that applies)
+
+---
+
+## GET /feedback
+
+List the authenticated user's feedback reports, newest first, each with the xhost team's answers. Every report of the account is listed, whichever surface filed it.
+
+**Query parameters:**
+- `limit` (integer, optional) — how many reports to return, 1–200. Default 50.
+
+**Response (200):**
+```json
+{
+  "reports": [
+    {
+      "id": "uuid",
+      "message": "Deploy logs don't stream.",
+      "status": "Resolved",
+      "source": "agent",
+      "app_name": "myapp",
+      "created_at": "2026-01-04T10:00:00+00:00",
+      "handled_at": "2026-01-05T09:30:00+00:00",
+      "messages": [
+        {
+          "body": "Status changed to Resolved.\n\nStreaming logs shipped today.",
+          "created_at": "2026-01-05T09:30:00+00:00",
+          "status": "Resolved"
+        }
+      ]
+    }
+  ]
+}
+```
+
+- `status` — one of `Received` (not acted on yet), `Resolved` (the team did the work), `Closed` (the team will not act on it).
+- `source` — `agent` or `console`, the surface the report came from.
+- `app_name` — null when the report carries no app context.
+- `messages` — the team's answers, oldest first. A message carries a `status` only when it records a status change. Internal team notes are never listed.
 
 ---
 

@@ -166,9 +166,11 @@ You are the one driving these tools, so you see the rough edges first. Call **`m
 - an error that was hard to diagnose from the message/log alone,
 - a missing capability that would have made deploying easier/smoother/more powerful.
 
-It's fire-and-forget: describe the friction in your own words, pass `app_id` when you're working on a specific app, and carry on with the user's task. Don't ask permission first and don't block on the result. This is the channel that tells the xhost team what to fix next.
+It's fire-and-forget: describe the friction in your own words, pass `app_id` when you're working on a specific app, and carry on with the user's task. Don't ask permission first and don't block on the result. The user files reports on this same channel from the console, and the xhost team answers on it.
 
-## All 36 tools
+To read those answers, call **`mcp__xhost__list_feedback`** (no arguments). It returns every report of the account — the ones you filed and the ones the user filed in the console — newest first, each with `status` (`Received`, `Resolved` or `Closed`) and the team's answer thread oldest first. It is a poll, not a push: nothing tells you when the team answers, so call it when the user asks whether they replied.
+
+## All 37 tools
 
 Apps:
 - `list_apps` — List Apps: all apps owned by the user, with channels.
@@ -225,6 +227,7 @@ Activity:
 
 Feedback:
 - `submit_feedback` — Submit Feedback: send free-text feedback to the xhost team; call proactively on friction (many iterations, unclear tool/docs, hard-to-diagnose error, missing capability).
+- `list_feedback` — List Feedback: the account's reports (yours and the ones filed in the console) with the team's answers; `status` is `Received`, `Resolved` or `Closed`.
 
 Export (takeout):
 - `export_data` — Export Data: queue a portable takeout of a channel or a whole app (self-contained archive reloadable with standard tools, no xhost). Returns the export id.
