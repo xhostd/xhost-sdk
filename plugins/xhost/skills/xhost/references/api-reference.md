@@ -1189,7 +1189,7 @@ The `<name>` portion (when not `*`) must match: `^[A-Za-z0-9][A-Za-z0-9/_\-\.]*$
 | `token_revoked` | 401 | Token has been revoked |
 | `scope_denied` | 403 | Token lacks the required scope |
 | `permission_denied` | 403 | Action not allowed for this caller or project (admin privileges required, or a project switch such as port forwarding is off) |
-| `protected_action` | 403 | A protected action: it needs a person in the web console. Tell the user to open the URL in the message and turn **agent access** on — then retry. Ownership transfer is the exception: only a console session transfers a project, and no setting opens it to a credential |
+| `protected_action` | 403 | A protected action needs a person in the web console. Tell the user to open the URL in the message. Tell the user to turn **agent access** on. Retry the call after the user answers. Ownership transfer is the exception: only a console session transfers a project, and no setting opens it to a credential |
 | `admin_not_configured` | 403 | Server admin user not set up |
 | `not_found` | 404 | Resource does not exist or is not owned by caller |
 | `bad_request` | 400 | Validation failure (see message for details) |
@@ -1201,27 +1201,33 @@ The `<name>` portion (when not `*`) must match: `^[A-Za-z0-9][A-Za-z0-9/_\-\.]*$
 ### Protected actions
 
 Twelve routes need a person in the web console. They are the three member
-writes, the two invite answers, ownership transfer, the two external-access
-toggles, the port-forwarding project toggle, the GitHub connect and
-disconnect, and `GET /apps/{app_id}/env/{key}/value`. Reads stay open:
+writes, the two invite answers, and ownership transfer. The list also holds
+the two external-access toggles and the port-forwarding project toggle. The
+list ends with the GitHub connect, the GitHub disconnect, and
+`GET /apps/{app_id}/env/{key}/value`. Reads stay open:
 `GET /apps/{app_id}/members`, `GET /invites`, `GET /apps/{app_id}/github`,
 `GET /apps/{app_id}/env` and `POST /apps/{app_id}/github/sync` never answer
 this error.
 
-Every agent credential gets `protected_action` on those twelve, until a person
-turns **agent access** on. Which switch applies depends on the route: the nine
-project actions read the app owner's switch (the project settings page), and
-the two invite answers read the caller's own account default (the account
-page). The message names the right page, so quote it to the user. Do not
-retry the call before the user answers.
+An agent credential gets `protected_action` on all twelve routes. The **agent
+access** switch opens eleven of them. The switch never opens ownership
+transfer, so that route fails again after the user turns the switch on.
+
+Which switch applies depends on the route. The nine project actions read the
+app owner's switch on the project settings page. The two invite answers read
+the caller's own account default on the account page. The message names the
+correct page, so quote it to the user. Do not retry the call before the user
+answers.
 
 The app field `agent_protected_actions_effective` predicts this error: when it
 is `false`, an agent credential gets `protected_action` on those nine project
 actions. `agent_protected_actions_enabled` is the raw override, and `null`
-there means the app inherits the account default of the owner.
+there means the app inherits the account default of the owner. The field does
+not predict the two invite answers or ownership transfer. The caller's own
+account default opens the invite answers, and no setting opens the transfer.
 
 Ownership transfer is the one action no setting opens. Tell the user to sign
-in to the console and transfer the project there.
+in to the console. The user transfers the project there.
 
 ---
 

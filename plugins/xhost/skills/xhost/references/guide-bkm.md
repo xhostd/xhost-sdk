@@ -428,8 +428,12 @@ works. Tell the user which limit the operation hit, and that an upgrade of the
 plan is the correction.
 
 **403 `permission_denied` — the caller does not hold the role that the
-operation needs.** A retry never works. Tell the user which role the operation
-needs, and who on the project holds it.
+operation needs, or a project switch that the operation needs is off.** For a
+role, a retry never works. Tell the user which role the operation needs, and who
+on the project holds it. For a switch, the message names the console URL. Tell
+the user to open that URL. Retry the call after the user turns the switch on.
+`expose_port` gives this error when the port-forwarding toggle of the project is
+off.
 
 **403 `protected_action` — the operation needs a person, not an agent.** These
 controls are protected: the project members, the owner of a project, and the

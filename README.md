@@ -55,8 +55,10 @@ The single `/xhost` skill handles account setup, app creation, deploys, previews
 
 1. You push code to xhost's git server
 2. You trigger a deploy (explicitly, via `/xhost` or the API)
-3. xhost runs your `install.sh` (install the dependencies) then `launch.sh` (start the app on `$XHOST_HTTP_PORT`). A Docker app runs the `CMD` in your `Dockerfile` instead. A static site needs no script, because nginx serves the committed files
+3. xhost runs your `install.sh` (install the dependencies) then `launch.sh` (start the app on `$XHOST_HTTP_PORT`)
 4. Your app is live over HTTPS with a wildcard cert
+
+A Docker app runs the `CMD` in your `Dockerfile` in place of the two scripts. A static site needs no script, because nginx serves the committed files.
 
 ## Requirements
 
