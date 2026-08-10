@@ -427,12 +427,19 @@ are too many channels, or the plan does not carry the feature. A retry never
 works. Tell the user which limit the operation hit, and that an upgrade of the
 plan is the correction.
 
-**403 `permission_denied` — the operation is permitted, but not from this
-interface.** Some controls are console-only on purpose. The console alone can
-turn on external access to the database or to the object storage. The console
-alone can manage the project members, and change the owner of a project. There
-is no tool for these controls, and there must not be one. Tell the user to make
-the change in the web console.
+**403 `permission_denied` — the caller does not hold the role that the
+operation needs.** A retry never works. Tell the user which role the operation
+needs, and who on the project holds it.
+
+**403 `protected_action` — the operation needs a person, not an agent.** These
+controls are protected: the project members, the owner of a project, and the
+reveal of a secret value. So are external access to the database, external
+access to the object storage, the public TCP toggle, and the GitHub connect and
+disconnect. There is no tool for any of them. The message names the console URL
+that turns them on. Tell the user to open that URL. A user who wants an agent to
+run these operations turns **agent access** on there first. A change of the
+owner of a project is the one exception: the console alone does it, and no
+setting changes that.
 
 **409 `channel_busy` or a conflict — another operation is active.** A deploy or
 a restore already holds the channel. You can retry this error. Wait for the

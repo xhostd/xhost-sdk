@@ -28,6 +28,12 @@ List all apps owned by the authenticated user.
       "repo_url": "https://git.<domain>/<username>/<app>.git",
       "template": "static",
       "created_at": "2025-01-15T10:30:00Z",
+      "external_db_access_enabled": false,
+      "external_blob_access_enabled": false,
+      "port_forwarding_enabled": false,
+      "port_forwarding_available": true,
+      "agent_protected_actions_enabled": null,
+      "agent_protected_actions_effective": false,
       "channels": [
         {
           "id": "uuid",
@@ -37,7 +43,9 @@ List all apps owned by the authenticated user.
           "current_sha": "abc1234567890abcdef1234567890abcdef12345",
           "status": "running"
         }
-      ]
+      ],
+      "owner_username": "alice",
+      "role": "owner"
     }
   ]
 }
@@ -70,6 +78,12 @@ Create a new app. Provisions a git repository and a `prod` channel automatically
   "repo_url": "https://git.<domain>/<username>/<app>.git",
   "template": "static",
   "created_at": "2025-01-15T10:30:00Z",
+  "external_db_access_enabled": false,
+  "external_blob_access_enabled": false,
+  "port_forwarding_enabled": false,
+  "port_forwarding_available": true,
+  "agent_protected_actions_enabled": null,
+  "agent_protected_actions_effective": false,
   "channels": [
     {
       "id": "uuid",
@@ -79,7 +93,9 @@ Create a new app. Provisions a git repository and a `prod` channel automatically
       "current_sha": null,
       "status": "provisioning"
     }
-  ]
+  ],
+  "owner_username": "alice",
+  "role": "owner"
 }
 ```
 
@@ -523,6 +539,8 @@ List an app's environment variables and secrets.
 
 Reveal one env value — the only read path for `kind: "secret"`. Every call records an `env.reveal` journal event (visible in `GET /apps/{app_id}/events`) before the value is returned. The web console's click-to-reveal uses this same endpoint.
 
+**A protected action.** An agent credential gets `protected_action` (403) until the app owner turns agent access on. No MCP tool wraps this route.
+
 **Required scope:** `deploy:*`
 
 **Query parameters:**
@@ -541,6 +559,7 @@ Reveal one env value — the only read path for `kind: "secret"`. Every call rec
 - `scope` — `app` or `channel`, the scope the value resolved from.
 
 **Errors:**
+- `protected_action` (403) — the app owner has agent access off; the message names the project settings URL
 - `not_found` (404) — key not set at the requested scope, or value unavailable
 
 ---
@@ -801,7 +820,7 @@ Inside the container the process must listen on `0.0.0.0` at the port in `$XHOST
 **Errors:**
 - `bad_request` (400) — more than 16 `allow_cidrs`, an entry that is not a valid IP address or range, or a `static` app (it runs no process that could accept a connection; use `app` or `docker`)
 - `plan_limit_exceeded` (402) — the owner's plan does not include public TCP endpoints; the message carries the upgrade URL
-- `permission_denied` (403) — the project's port-forwarding toggle is off. It is console-only (project Settings) — there is no MCP tool for it, and the message names the URL a project admin must use
+- `permission_denied` (403) — the project's port-forwarding toggle is off. The toggle itself (`POST /apps/{app_id}/forwarding`) is a protected action — there is no MCP tool for it, it answers `protected_action` to an agent credential, and the message here names the URL a project admin must use
 - `not_found` (404) — app/channel not found, or the caller is below the admin role
 - `conflict` (409) — no forward node has a free port right now
 
@@ -837,7 +856,7 @@ Release the channel's public endpoint. New connections are refused immediately a
 
 ## POST /apps/{app_id}/github/sync
 
-For apps connected to a GitHub source: fetch the latest GitHub commits into the app's internal xhost mirror without deploying. Deploys auto-sync anyway; use this to refresh the mirror or surface sync errors on their own. Requires the admin role (or higher) on the app.
+For apps connected to a GitHub source: fetch the latest GitHub commits into the app's internal xhost mirror without deploying. Deploys auto-sync anyway; use this to refresh the mirror or surface sync errors on their own. Requires the admin role (or higher) on the app. Not a protected action — it pulls the remote the owner already chose, so it never answers `protected_action`. Connecting and disconnecting a GitHub repo ARE protected actions, and neither has an MCP tool.
 
 **Request body:** None
 
@@ -1169,7 +1188,8 @@ The `<name>` portion (when not `*`) must match: `^[A-Za-z0-9][A-Za-z0-9/_\-\.]*$
 | `token_invalid` | 401 | Token does not exist or is malformed |
 | `token_revoked` | 401 | Token has been revoked |
 | `scope_denied` | 403 | Token lacks the required scope |
-| `permission_denied` | 403 | Action not allowed for this caller or project (admin privileges required, or a console-only project switch such as port forwarding is off) |
+| `permission_denied` | 403 | Action not allowed for this caller or project (admin privileges required, or a project switch such as port forwarding is off) |
+| `protected_action` | 403 | A protected action: it needs a person in the web console. Tell the user to open the URL in the message and turn **agent access** on — then retry. Ownership transfer is the exception: only a console session transfers a project, and no setting opens it to a credential |
 | `admin_not_configured` | 403 | Server admin user not set up |
 | `not_found` | 404 | Resource does not exist or is not owned by caller |
 | `bad_request` | 400 | Validation failure (see message for details) |
@@ -1177,6 +1197,31 @@ The `<name>` portion (when not `*`) must match: `^[A-Za-z0-9][A-Za-z0-9/_\-\.]*$
 | `bad_gateway` | 502 | Upstream service error |
 | `service_unavailable` | 503 | Dependent service degraded (e.g. `postgres_unavailable`, `blob_unavailable`) |
 | `internal_error` | 500 | Unexpected server error |
+
+### Protected actions
+
+Twelve routes need a person in the web console. They are the three member
+writes, the two invite answers, ownership transfer, the two external-access
+toggles, the port-forwarding project toggle, the GitHub connect and
+disconnect, and `GET /apps/{app_id}/env/{key}/value`. Reads stay open:
+`GET /apps/{app_id}/members`, `GET /invites`, `GET /apps/{app_id}/github`,
+`GET /apps/{app_id}/env` and `POST /apps/{app_id}/github/sync` never answer
+this error.
+
+Every agent credential gets `protected_action` on those twelve, until a person
+turns **agent access** on. Which switch applies depends on the route: the nine
+project actions read the app owner's switch (the project settings page), and
+the two invite answers read the caller's own account default (the account
+page). The message names the right page, so quote it to the user. Do not
+retry the call before the user answers.
+
+The app field `agent_protected_actions_effective` predicts this error: when it
+is `false`, an agent credential gets `protected_action` on those nine project
+actions. `agent_protected_actions_enabled` is the raw override, and `null`
+there means the app inherits the account default of the owner.
+
+Ownership transfer is the one action no setting opens. Tell the user to sign
+in to the console and transfer the project there.
 
 ---
 

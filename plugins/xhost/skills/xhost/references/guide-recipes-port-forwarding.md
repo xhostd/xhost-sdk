@@ -19,8 +19,8 @@ exists, so you can give it to your users.
 Two conditions control this recipe before your code is important. First, your
 **plan** must include port forwarding; the basic plan does not. Second, a person
 must set the project's **port forwarding toggle** to on in the web console. The
-sections below give the full detail on both. There is no tool for the toggle, by
-design, so an agent must ask the user.
+sections below give the full detail on both. There is no tool for the toggle,
+and the platform refuses it to an agent, so an agent must ask the user.
 
 **"Can I SSH into my app?"** Yes, and this recipe is the method. xhost runs no
 SSH daemon and no SSH gateway, and it will not add one. To route SSH for many
@@ -198,9 +198,13 @@ thing:
 - **`port_forwarding_enabled`** — the **project toggle**. Its default is
   **false**, also when the plan permits port forwarding.
 
-The toggle is console-only, by policy. A project admin sets it under
-**Port forwarding** on the settings page for the project. You do not have to
-build that URL, because the error for a toggle that is off contains it:
+The toggle is a **protected action**. A project admin sets it under
+**Port forwarding** on the settings page for the project. An agent that calls
+the toggle route gets a `403 protected_action` error, and that message also
+names the settings page. A user who wants an agent to set the toggle turns
+**agent access** on for the project first, in the Agent access card of the same
+page. You do not have to build the URL for `expose_port`, because the error for
+a toggle that is off contains it:
 
 ```text
 expose_port(app_name="recipe-tcp", channel="prod")
@@ -213,7 +217,8 @@ The id in the URL is the app `id` from `create_app`. There is no MCP tool for
 the toggle, by design. A person must make the decision to open a project to the
 public internet. An agent with the power to set the toggle could also report a
 live endpoint that the user did not agree to. If you are an agent, **ask the
-user to set the toggle** and wait. You cannot set it for the user.
+user to set the toggle** and wait. The platform answers a `403
+protected_action` error to you, until the user turns agent access on.
 
 The toggle is ADMIN-only, and not MEMBER-only, because it controls
 `expose_port`. A member must not re-open every endpoint that an admin closed.

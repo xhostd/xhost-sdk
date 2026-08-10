@@ -85,8 +85,10 @@ from your lists.
 `external_blob_access_enabled`. That flag is **not** part of this recipe. It
 controls whether S3 tools *outside* the platform can reach the store through
 the public gateway. Examples are `aws s3` on your laptop, rclone, and an SDK
-on another host. The flag is console-only by design, and it is `false` for the
-app in this recipe. Your container's own access does not depend on it.
+on another host. The flag is a protected action, and it is `false` for the app
+in this recipe. A person sets it in the console; the platform answers a `403
+protected_action` error to an agent. Your container's own access does not
+depend on it.
 
 ## The files
 
@@ -694,9 +696,11 @@ pair and `region_name`.
 `external_blob_access_enabled` is not the control that makes your app's
 storage work. A change to it repairs no fault inside the container. It
 controls whether the public S3 gateway gives your channel's credentials to a
-client *outside* the platform. It is a console-only action by design. It
-changes nothing on the injected `S3_ENDPOINT` path that your container uses.
-If the S3 calls in your app fail, the cause is elsewhere in this list.
+client *outside* the platform. It is a protected action: a person sets it in
+the console, and the platform answers a `403 protected_action` error to an
+agent. It changes nothing on the injected `S3_ENDPOINT` path that your
+container uses. If the S3 calls in your app fail, the cause is elsewhere in
+this list.
 
 ### Files come back with the wrong type
 

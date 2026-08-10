@@ -41,11 +41,11 @@ The single `/xhost` skill handles account setup, app creation, deploys, previews
 
 ## What xhost supports
 
-- **Static sites** — HTML/CSS/JS served by nginx
-- **Node.js apps** — Express, Next.js, Fastify, Vite (provide `install.sh` + `launch.sh`)
-- **Python apps** — FastAPI, Flask, Django (provide `install.sh` + `launch.sh`)
-- **Docker** — your own `Dockerfile`, built from a warm base image
-- **Any language** — if the runtime is in the base image, just write your scripts
+- **Static sites** — nginx serves your HTML/CSS/JS
+- **Node.js apps** — Express, Next.js, Fastify, Vite (give `install.sh` + `launch.sh`)
+- **Python apps** — FastAPI, Flask, Django (give `install.sh` + `launch.sh`)
+- **Docker apps** — any runtime, from a `Dockerfile` that you write
+- **Background workers** — processes that run without end, not web servers
 
 ## Recipes
 
@@ -55,13 +55,13 @@ The single `/xhost` skill handles account setup, app creation, deploys, previews
 
 1. You push code to xhost's git server
 2. You trigger a deploy (explicitly, via `/xhost` or the API)
-3. xhost runs your `install.sh` (install deps) then `launch.sh` (start app on `$XHOST_HTTP_PORT`)
+3. xhost runs your `install.sh` (install the dependencies) then `launch.sh` (start the app on `$XHOST_HTTP_PORT`). A Docker app runs the `CMD` in your `Dockerfile` instead. A static site needs no script, because nginx serves the committed files
 4. Your app is live over HTTPS with a wildcard cert
 
 ## Requirements
 
 - Git installed locally
-- An API token (from [xhostd.com/tokens](https://xhostd.com/tokens)) only if you push over git or call the API with raw curl — the MCP connection itself uses OAuth, no token
+- An API token (from [console.xhostd.com/tokens](https://console.xhostd.com/tokens)) only if you push over git or call the API with raw curl — the MCP connection itself uses OAuth, no token
 
 ## License
 
