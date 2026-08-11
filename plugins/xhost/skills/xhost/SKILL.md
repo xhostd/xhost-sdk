@@ -168,7 +168,7 @@ You are the one driving these tools, so you see the rough edges first. Call **`m
 
 It's fire-and-forget: describe the friction in your own words, pass `app_id` when you're working on a specific app, and carry on with the user's task. Don't ask permission first and don't block on the result. The user files reports on this same channel from the console, and the xhost team answers on it.
 
-To read those answers, call **`mcp__xhost__list_feedback`** (no arguments). It returns every report of the account — the ones you filed and the ones the user filed in the console — newest first, each with `status` (`Received`, `Resolved` or `Closed`) and the team's answer thread oldest first. It is a poll, not a push: nothing tells you when the team answers, so call it when the user asks whether they replied.
+To read those answers, call **`mcp__xhost__list_feedback`** (optional `limit`, optional `cursor`). One call answers one page of the account's reports — the ones you filed and the ones the user filed in the console — newest first, each with `status` (`Received`, `Resolved` or `Closed`) and the team's answer thread oldest first. The answer also carries `next_cursor`. When `next_cursor` holds a value, older reports exist: call the tool again and pass that value as `cursor`. When `next_cursor` is null, you read the last report, so do not call the tool again. It is a poll, not a push: nothing tells you when the team answers, so call it when the user asks whether they replied.
 
 ## All 37 tools
 
@@ -227,7 +227,7 @@ Activity:
 
 Feedback:
 - `submit_feedback` — Submit Feedback: send free-text feedback to the xhost team; call proactively on friction (many iterations, unclear tool/docs, hard-to-diagnose error, missing capability).
-- `list_feedback` — List Feedback: the account's reports (yours and the ones filed in the console) with the team's answers; `status` is `Received`, `Resolved` or `Closed`.
+- `list_feedback` — List Feedback: one page of the account's reports (yours and the ones filed in the console) with the team's answers; `status` is `Received`, `Resolved` or `Closed`; follow `next_cursor` as `cursor` until it is null.
 
 Export (takeout):
 - `export_data` — Export Data: queue a portable takeout of a channel or a whole app (self-contained archive reloadable with standard tools, no xhost). Returns the export id.

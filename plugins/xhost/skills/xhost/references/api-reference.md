@@ -1049,10 +1049,11 @@ Submit free-text feedback to the xhost team about platform friction (many iterat
 
 ## GET /feedback
 
-List the authenticated user's feedback reports, newest first, each with the xhost team's answers. Every report of the account is listed, whichever surface filed it.
+List the authenticated user's feedback reports, newest first, each with the xhost team's answers. One call answers one page of the account's reports, whichever surface filed them.
 
 **Query parameters:**
 - `limit` (integer, optional) — how many reports to return, 1–200. Default 50.
+- `cursor` (string, optional) — the `next_cursor` of the previous call (pagination cursor). Omit it on the first call. A cursor the route cannot read answers `bad_request` (400).
 
 **Response (200):**
 ```json
@@ -1074,7 +1075,8 @@ List the authenticated user's feedback reports, newest first, each with the xhos
         }
       ]
     }
-  ]
+  ],
+  "next_cursor": "MjAyNi0wMS0wNFQxMDowMDowMCswMDowMHwzZjFhN2MyZS05YjY0LTRkMWEtOGU1Ny0yYzBiOWQ0ZjZhMTM"
 }
 ```
 
@@ -1082,6 +1084,7 @@ List the authenticated user's feedback reports, newest first, each with the xhos
 - `source` — `agent` or `console`, the surface the report came from.
 - `app_name` — null when the report carries no app context.
 - `messages` — the team's answers, oldest first. A message carries a `status` only when it records a status change. Internal team notes are never listed.
+- `next_cursor` — an opaque value. Pass it as `cursor` to read the next page; `null` when the account has no older report. Build no cursor of your own.
 
 ---
 
