@@ -1090,7 +1090,9 @@ List the authenticated user's feedback reports, newest first, each with the xhos
 
 ## GET /api/user/stats
 
-Return dashboard stats for the authenticated user (self-scoped). No admin privileges required.
+Return dashboard stats for the authenticated user. No admin privileges required.
+
+The counts and the `sites` rows cover every project the caller can see: the projects the caller owns, plus every project shared with the caller. A `repo` value reads `owner/project`, so a shared row names its owner. The `resources` block is the caller's OWN memory and CPU alone, because a shared project runs under its owner's resource slice.
 
 **Request body:** None
 
