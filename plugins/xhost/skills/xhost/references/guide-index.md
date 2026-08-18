@@ -32,6 +32,7 @@ not need to read the other guides first.
 | [Background worker](https://docs.xhostd.com/guides/recipes-worker) | A long-running process, not a web server | Ready |
 | [Ship without git](https://docs.xhostd.com/guides/recipes-commit-files) | A site put onto the app by tool call, where there is no shell to run `git` in | Ready |
 | [Best practices](https://docs.xhostd.com/guides/bkm) | The habits that keep a deploy free of surprises | Ready |
+| [Diagnose a slow app](https://docs.xhostd.com/guides/diagnose-slowness) | The cause of a slow or unhealthy channel, and the action for it | Ready |
 | Custom domain | Your own domain, with HTTPS | Coming soon |
 
 ## The parts of a recipe

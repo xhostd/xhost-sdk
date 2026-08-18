@@ -189,7 +189,7 @@ It's fire-and-forget: describe the friction in your own words, pass `app_id` whe
 
 To read those answers, call **`mcp__xhost__list_feedback`** (optional `limit`, optional `cursor`). One call answers one page of the account's reports — the ones you filed and the ones the user filed in the console — newest first, each with `status` (`Received`, `Resolved` or `Closed`) and the team's answer thread oldest first. The answer also carries `next_cursor`. When `next_cursor` holds a value, older reports exist: call the tool again and pass that value as `cursor`. When `next_cursor` is null, you read the last report, so do not call the tool again. It is a poll, not a push: nothing tells you when the team answers, so call it when the user asks whether they replied.
 
-## All 40 tools
+## All 41 tools
 
 Apps:
 - `list_apps` — List Apps: all apps owned by the user, with channels.
@@ -219,6 +219,7 @@ Env:
 
 Stats + DB snapshots:
 - `get_app_stats` — Get App Usage Stats: 24h/7d/30d.
+- `get_app_health` — Get App Health: why one channel is slow or unhealthy. Returns resource, runtime, build and database blocks plus a `findings` list, where each finding carries its own `action` (`do`, `actor`, `retry_after_seconds`). Read `findings` first and obey `action`; never infer a retry from the figures.
 - `list_channel_snapshots` — List Database Snapshots: both kinds, newest first.
 - `restore_channel_db` — Restore Database Snapshot: roll a channel's database back to a snapshot.
 
@@ -274,6 +275,7 @@ Export (takeout):
 - `references/guide-recipes-worker.md` — Background worker: a long-running loop that serves no HTTP, readiness by `$XHOST_READY_FILE`, and how to prove progress from the runtime log.
 - `references/guide-recipes-commit-files.md` — Ship without git: the `commit_files` fallback for a runtime with no shell, sparse changesets, and `null` deletes.
 - `references/guide-bkm.md` — Best-known methods: debugging with `get_runtime_log`, stack choices, upgrade-safe code, secrets, budgets, quota errors, and the undo path.
+- `references/guide-diagnose-slowness.md` — Diagnose a slow app: `get_app_health`, why `findings` comes first, the six `action.do` verbs, and what an unavailable block means.
 
 Every `references/guide-*.md` is a user-facing guide,
 **generated** from `docs/guides/` by `scripts/build-docs.py`. Never hand-edit
