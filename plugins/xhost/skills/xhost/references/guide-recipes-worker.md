@@ -201,7 +201,7 @@ Your credential is the token from `get_credentials()`. Put it in the
 https://<username>:<token>@git.xhostd.com/<username>/<app>.git
 ```
 
-A new xhost repo is empty, and git reports this. The warning is correct, and it
+A new xhostd repo is empty, and git reports this. The warning is correct, and it
 is not a fault:
 
 ```bash

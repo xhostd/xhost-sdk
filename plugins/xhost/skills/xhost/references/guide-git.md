@@ -1,6 +1,6 @@
 # Push code with git
 
-Every app on xhost owns a git repo at
+Every app on xhostd owns a git repo at
 `https://git.xhostd.com/<username>/<app>.git`. A push to that repo puts
 code onto an app. This applies to the first commit, and to every commit
 after it. A push sends only the diff. Thus each edit stays small, and it
@@ -98,7 +98,7 @@ git remote add xhost-ssh "git@git.xhostd.com:<username>/<app>.git"
 GIT_SSH_COMMAND="ssh -i ~/.ssh/xhost_ed25519" git push xhost-ssh HEAD:master
 ```
 
-The `HEAD:master` refspec is deliberate. xhost binds the prod channel to
+The `HEAD:master` refspec is deliberate. xhostd binds the prod channel to
 the `master` branch. A new local repo often uses `main` as its default
 branch. `HEAD:master` pushes the current branch to `master`, whatever
 its local name is. `GIT_SSH_COMMAND` names the private half. The key
@@ -148,7 +148,7 @@ git remote add xhost "https://<username>:<token>@git.xhostd.com/<username>/<app>
 git push xhost HEAD:master
 ```
 
-The `HEAD:master` refspec is deliberate here too. xhost binds the prod
+The `HEAD:master` refspec is deliberate here too. xhostd binds the prod
 channel to the `master` branch, and a new local repo often uses `main`
 as its default branch.
 

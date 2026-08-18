@@ -3,7 +3,7 @@
 ## What you get
 
 A FastAPI service stores uploaded files in the S3-compatible object store.
-xhost provisions that store for the channel. `POST /files` uploads one file.
+xhostd provisions that store for the channel. `POST /files` uploads one file.
 `GET /files` lists the files. `GET /files/{key}` downloads one file.
 `DELETE /files/{key}` removes one file. You create no bucket, you configure no
 credentials and you set no flag. The platform injects five `S3_*` variables
@@ -365,7 +365,7 @@ the SSH commands.
 Put it in the **password** field of the remote URL:
 `https://<username>:<token>@git.xhostd.com/<username>/<app>.git`.
 
-**3. Clone, commit, push.** A new xhost repo is empty, and git tells you so.
+**3. Clone, commit, push.** A new xhostd repo is empty, and git tells you so.
 The warning is correct; it is not a fault:
 
 ```bash

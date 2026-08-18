@@ -70,7 +70,7 @@ the code `healthy` and the action `none`.
 | `retry` | Make the same call again after `retry_after_seconds`. |
 | `change_code` | The app or its query needs an edit. A plain retry fails again. |
 | `upgrade_plan` | The account is at a limit of its plan. Only a larger plan raises that limit. |
-| `contact_support` | The xhost team owns the cause. |
+| `contact_support` | The xhostd team owns the cause. |
 | `none` | There is nothing to do. |
 
 `action.retry_after_seconds` carries a number for `retry` and for `wait`
@@ -80,7 +80,7 @@ delay where none belongs.
 
 `action.actor` names who acts. `agent` is you. `user` is the person you work
 for. **Do not try to satisfy a `user` action yourself.** Only the user can pay
-for a larger plan, and only a person can speak to the xhost team. Relay the
+for a larger plan, and only a person can speak to the xhostd team. Relay the
 `what` and the `why` text to the user, and stop there.
 
 A reply can carry more than one finding. Act on the `critical` findings
@@ -116,10 +116,10 @@ Three states are normal, and none of them is a fault:
   cover the whole account of the app owner, over every app that the account
   runs. They are not per channel, so a member does not read them.
 - **`database.top_statements` carries its OWN `available`.** An unavailable
-  `top_statements` beside an available `database` is normal. The common
-  cause is a database server with no `pg_stat_statements` extension, but a
-  failed read gives the same shape. Read `reason` for the true cause. The
-  size and the cache-hit figures are still correct.
+  `top_statements` beside an available `database` is normal. Every xhostd
+  database server holds the `pg_stat_statements` extension, so the cause is
+  a failed read. Read `reason` for the true cause. The size and the
+  cache-hit figures are still correct.
 - **`runtime` is unavailable before the first deploy.** A channel with no
   container yet has no status to report.
 

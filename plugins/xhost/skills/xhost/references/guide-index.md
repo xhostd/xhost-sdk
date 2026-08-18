@@ -7,7 +7,7 @@ the environment, deploy, and check that the app is live. A coding agent can
 follow a recipe for you. The fastest method is to give your agent the recipe
 and say "do this".
 
-If your agent has no connection to xhost, start with
+If your agent has no connection to xhostd, start with
 [Getting Started](https://docs.xhostd.com/getting-started). Then come back
 here.
 
@@ -41,7 +41,7 @@ Every recipe has the same start point and the same end.
 
 ### What you need first
 
-You need an xhost account, and an agent that can reach the xhost tools. You
+You need an xhostd account, and an agent that can reach the xhostd tools. You
 need nothing more. There is no local runtime, no build step on your machine,
 and no server to rent.
 

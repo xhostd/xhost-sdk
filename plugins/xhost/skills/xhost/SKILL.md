@@ -4,14 +4,14 @@ description: >-
   Use when the user wants to deploy a website or app, host a static site, put
   something online, publish a page, create a preview URL, check deployment
   status, manage env vars or custom domains, push from a local git checkout,
-  or mentions xhost in any way. Covers the full lifecycle: create app → push
+  or mentions xhostd in any way. Covers the full lifecycle: create app → push
   code → deploy → live HTTPS URL, plus channels, env, snapshots, domains,
   and Google sign-in.
 ---
 
-# xhost — Agent-First Hosting
+# xhostd — Agent-First Hosting
 
-xhost is hosting designed for agents. You create an app, push its code to the git repo the app owns, and deploy it. Every app gets a production HTTPS URL; named channels give preview URLs. The same `mcp__xhost__*` tools are available on Claude Code and on claude.ai (via the connector), so the procedure below is identical in both contexts — except that a runtime with no shell has no git, and there the `commit_files` fallback stands in for the push.
+xhostd is hosting designed for agents. You create an app, push its code to the git repo the app owns, and deploy it. Every app gets a production HTTPS URL; named channels give preview URLs. The same `mcp__xhost__*` tools are available on Claude Code and on claude.ai (via the connector), so the procedure below is identical in both contexts — except that a runtime with no shell has no git, and there the `commit_files` fallback stands in for the push.
 
 ## Authentication
 
@@ -75,7 +75,7 @@ H3. Configure the remote with the token in the **password** field (any username 
 H4. `git push xhost HEAD:master` (or `HEAD:<your-branch>`).
 H5. Trigger the build with **`mcp__xhost__deploy`** — pushing stores code but does not deploy. Pass `ref: "master"` (or the branch name) so xhostd resolves to HEAD; or pass an explicit `sha`.
 
-Both transports reach the same repo. `HEAD:master` on either one: xhost binds prod to `master`, but a fresh `git init` defaults to `main`, so the explicit refspec pushes the current branch under the pinned name.
+Both transports reach the same repo. `HEAD:master` on either one: xhostd binds prod to `master`, but a fresh `git init` defaults to `main`, so the explicit refspec pushes the current branch under the pinned name.
 
 The same token is your **Postgres password** when external database access is enabled in the console: `postgresql://<username>:<token>@db.xhostd.com:5432/<db>?sslmode=require` (`<db>` = app name for `prod`, else `<channel>-<app>`).
 
@@ -127,7 +127,7 @@ set -e
 exec python worker.py   # worker.py creates $XHOST_READY_FILE once its loop is running
 ```
 
-**`docker`** — the repo has a `Dockerfile` at its **root**; xhost builds it on every deploy and runs the resulting image with pure Docker semantics — your image's own `ENTRYPOINT`/`CMD` runs (no `install.sh`/`launch.sh`). The contract:
+**`docker`** — the repo has a `Dockerfile` at its **root**; xhostd builds it on every deploy and runs the resulting image with pure Docker semantics — your image's own `ENTRYPOINT`/`CMD` runs (no `install.sh`/`launch.sh`). The contract:
 
 - **Signal readiness one of the two ways** — **listen on `0.0.0.0` and the injected `$XHOST_HTTP_PORT`** and **return 2xx at `GET /`**, or **create `$XHOST_READY_FILE`** if the image has no HTTP surface. Same health check as `app`. The file signal needs no shell in the image: a distroless worker can just `open()` the path from its own code.
 - **Env vars are injected at run time only, NEVER as build args.** Secrets are not available during the build and must never be baked into an image — read all config from the environment at startup.
@@ -159,24 +159,24 @@ URL format:
 - Prod: `https://<app>-<owner>.xhostd.com`
 - Other channels: `https://<channel>-<app>-<owner>.xhostd.com`
 
-`<owner>` is the user's xhost username (chosen at first sign-in). The exact `hostname` is always in the channel object returned by `create_app` / `list_channels` / `get_app` — read it from there rather than constructing it.
+`<owner>` is the user's xhostd username (chosen at first sign-in). The exact `hostname` is always in the channel object returned by `create_app` / `list_channels` / `get_app` — read it from there rather than constructing it.
 
 ## Common follow-ups
 
 - **Env vars & secrets:** `mcp__xhost__set_env` (`app_id`, `key`, `value`, optional `secret: true`, optional `channel` name) and `mcp__xhost__delete_env` (`app_id`, `key`, optional `channel`). Without `channel` the value is an app-level default; with it, a per-channel override that wins at deploy time. `mcp__xhost__list_env` (`app_id`, optional `channel`) lists entries — with `channel` it's the resolved view (`scope` = `app` or `channel`); plain values come back in cleartext, but **secret values are never returned via MCP** (metadata only — the web console reveals a secret, and the HTTP API `GET /apps/{app_id}/env/{key}/value` reveals one too. That route is a **protected action**: it answers `protected_action` to an agent credential, and the account or project **agent access** switch opens it. Each reveal is audit-logged). `mcp__xhost__get_deploy_env` (`app_id`, `channel`, `deploy_id`) shows the env a past deploy ran with (secrets masked, system-injected keys by name only). Keys must match `^[A-Z_][A-Z0-9_]*$`. Reserved (don't try to set): `XHOST_USER`, `XHOST_SHA`, `XHOST_HTTP_PORT`, `PORT`, `XHOST_FORWARD_PORT`, `XHOST_READY_FILE`, `DATABASE_URL`, `DATABASE_HOST`, `DATABASE_PASSWORD`, `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_REGION`. Every channel automatically gets `DATABASE_URL` pointing at the channel's own Postgres database — read it from `process.env` (or equivalent); don't ask the user for a connection string.
 - **Usage stats:** `mcp__xhost__get_app_stats` (`app_name`, optional `channel`, `window` ∈ `24h`/`7d`/`30d`).
-- **Snapshots:** a channel has two kinds of snapshot, and the `kind` field names the kind. Every non-static deploy first takes a `pre_deploy` snapshot of Postgres. xhost keeps the newest 3 and applies no age cap, so a rollback point survives a dormant month. A `nightly` snapshot is a routine copy, and xhost deletes it after the plan retention window (1 day on `basic`, 7 days on every paid plan). A static channel gets no `nightly` snapshot, because a static site never uses its database. xhost always keeps a channel's newest `nightly` snapshot, however old it is. A `nightly` snapshot has a null `deploy_id`, because no deploy triggers it. `mcp__xhost__list_channel_snapshots` (`app_name`, `channel`) lists both kinds newest-first; `mcp__xhost__restore_channel_db` (`app_name`, `channel`, `snapshot_id`) rolls the channel's database back to that snapshot. Refuses `prod` unless `XHOST_ALLOW_PROD_RESTORE=1` is set on the app.
+- **Snapshots:** a channel has two kinds of snapshot, and the `kind` field names the kind. Every non-static deploy first takes a `pre_deploy` snapshot of Postgres. xhostd keeps the newest 3 and applies no age cap, so a rollback point survives a dormant month. A `nightly` snapshot is a routine copy, and xhostd deletes it after the plan retention window (1 day on `basic`, 7 days on every paid plan). A static channel gets no `nightly` snapshot, because a static site never uses its database. xhostd always keeps a channel's newest `nightly` snapshot, however old it is. A `nightly` snapshot has a null `deploy_id`, because no deploy triggers it. `mcp__xhost__list_channel_snapshots` (`app_name`, `channel`) lists both kinds newest-first; `mcp__xhost__restore_channel_db` (`app_name`, `channel`, `snapshot_id`) rolls the channel's database back to that snapshot. Refuses `prod` unless `XHOST_ALLOW_PROD_RESTORE=1` is set on the app.
 - **Object storage (S3-compatible):** auto-provisioned per channel (like the database — no enable step), for unstructured blobs (uploads, generated assets, exports). `mcp__xhost__get_blob_credentials` (`app_name`, `channel`) returns the endpoint/bucket/key pair, and `mcp__xhost__get_blob_usage` (`app_name`, `channel`) reports bytes used. Deploys inject `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_REGION` — point any S3 SDK at those env vars rather than constructing them. Snapshot **restore** has no MCP tool but is available via the dashboard or the HTTP API (`POST .../blob/restore`); the **external-access** toggle (`POST /apps/{app_id}/blob/external`) is a **protected action** — it answers `protected_action` to an agent credential, and the account or project **agent access** switch opens it. Neither is on MCP, because a data rollback and public storage each need a decision by a person.
 - **Custom domains:** `mcp__xhost__add_custom_domain` (`app_name`, `channel`, `domain`) returns DNS instructions (TXT + CNAME or A) in the `instructions` field — relay that text to the user verbatim. After they create the records, call `mcp__xhost__verify_custom_domain` (same args). HTTPS is automatic once verified. `mcp__xhost__list_custom_domains` and `mcp__xhost__remove_custom_domain` are also available. Limit 5 per channel.
 
-- **Public raw-TCP endpoints:** when the channel's HTTPS URL can't carry the protocol (a database protocol, a message broker, a game server, a custom binary protocol), `mcp__xhost__expose_port` (`app_name`, `channel`, optional `allow_cidrs`) returns a public `host:port` that forwards raw TCP into the container. `allow_cidrs` is a source-address allowlist (max 16 entries); omitting it means the whole internet can connect. The container side is fixed: listen on `0.0.0.0:$XHOST_FORWARD_PORT` (injected into every non-`static` container alongside `$XHOST_HTTP_PORT`). Requires a **paid plan** and the project's port-forwarding toggle on; that toggle (`POST /apps/{app_id}/forwarding`) is a **protected action** — it answers `protected_action` to an agent credential, and the account or project **agent access** switch opens it. `static` apps are refused, since they run no process that could accept a connection. `mcp__xhost__list_exposed_ports` (`app_name`) shows the project's endpoints; `mcp__xhost__unexpose_port` releases one (re-exposing gets a new address). xhost adds no TLS and authenticates nothing on that port — the app is the only lock on the door.
-- **Google sign-in for the user's app:** zero-config, no MCP tool. `/xhost-auth/*` works on every deployed channel. After Google sign-in the gateway sets a signed identity cookie `__Host-xhost_id` (an RS256 JWT) on the channel host; the app verifies it against the JWKS at `https://auth.xhostd.com/xhost-auth/jwks` and gates its own routes. **xhost does identity only, never edge gatekeeping — nothing is blocked at the edge, so every route stays public (anonymous visitors get `200`) until your app verifies the cookie and enforces access itself in code.** Send signed-out users to `/xhost-auth/login?return_to=<path>`, logout via `/xhost-auth/logout?return_to=/`; SPA/JS-only apps call `GET /xhost-auth/whoami`. **`__Host-xhost_id` is a reserved cookie name — never set or read it as a raw value; always verify it (pin `RS256`, check `iss`/`aud`/`exp`).** Full per-stack verify snippets: <https://docs.xhostd.com/oauth>.
+- **Public raw-TCP endpoints:** when the channel's HTTPS URL can't carry the protocol (a database protocol, a message broker, a game server, a custom binary protocol), `mcp__xhost__expose_port` (`app_name`, `channel`, optional `allow_cidrs`) returns a public `host:port` that forwards raw TCP into the container. `allow_cidrs` is a source-address allowlist (max 16 entries); omitting it means the whole internet can connect. The container side is fixed: listen on `0.0.0.0:$XHOST_FORWARD_PORT` (injected into every non-`static` container alongside `$XHOST_HTTP_PORT`). Requires a **paid plan** and the project's port-forwarding toggle on; that toggle (`POST /apps/{app_id}/forwarding`) is a **protected action** — it answers `protected_action` to an agent credential, and the account or project **agent access** switch opens it. `static` apps are refused, since they run no process that could accept a connection. `mcp__xhost__list_exposed_ports` (`app_name`) shows the project's endpoints; `mcp__xhost__unexpose_port` releases one (re-exposing gets a new address). xhostd adds no TLS and authenticates nothing on that port — the app is the only lock on the door.
+- **Google sign-in for the user's app:** zero-config, no MCP tool. `/xhost-auth/*` works on every deployed channel. After Google sign-in the gateway sets a signed identity cookie `__Host-xhost_id` (an RS256 JWT) on the channel host; the app verifies it against the JWKS at `https://auth.xhostd.com/xhost-auth/jwks` and gates its own routes. **xhostd does identity only, never edge gatekeeping — nothing is blocked at the edge, so every route stays public (anonymous visitors get `200`) until your app verifies the cookie and enforces access itself in code.** Send signed-out users to `/xhost-auth/login?return_to=<path>`, logout via `/xhost-auth/logout?return_to=/`; SPA/JS-only apps call `GET /xhost-auth/whoami`. **`__Host-xhost_id` is a reserved cookie name — never set or read it as a raw value; always verify it (pin `RS256`, check `iss`/`aud`/`exp`).** Full per-stack verify snippets: <https://docs.xhostd.com/oauth>.
 
 ## Plan limits
 
 If a tool fails with `plan_limit_exceeded`, this is an **upgrade prompt, not a retryable error** — the action needs a plan the user doesn't have: either their plan's account-wide channel quota is full (every channel counts, including each app's `prod`), or the feature itself is paid-only (e.g. public raw-TCP endpoints via `expose_port`). Do not retry. Relay the upgrade URL from the message to the user verbatim, tell them to upgrade in the browser, and re-run the action only after they confirm they've upgraded.
 
-## Giving feedback to the xhost team
+## Giving feedback to the xhostd team
 
 You are the one driving these tools, so you see the rough edges first. Call **`mcp__xhost__submit_feedback`** (`message`, optional `app_id`) **proactively — without being asked —** whenever something gets in your way, e.g.:
 
@@ -185,7 +185,7 @@ You are the one driving these tools, so you see the rough edges first. Call **`m
 - an error that was hard to diagnose from the message/log alone,
 - a missing capability that would have made deploying easier/smoother/more powerful.
 
-It's fire-and-forget: describe the friction in your own words, pass `app_id` when you're working on a specific app, and carry on with the user's task. Don't ask permission first and don't block on the result. The user files reports on this same channel from the console, and the xhost team answers on it.
+It's fire-and-forget: describe the friction in your own words, pass `app_id` when you're working on a specific app, and carry on with the user's task. Don't ask permission first and don't block on the result. The user files reports on this same channel from the console, and the xhostd team answers on it.
 
 To read those answers, call **`mcp__xhost__list_feedback`** (optional `limit`, optional `cursor`). One call answers one page of the account's reports — the ones you filed and the ones the user filed in the console — newest first, each with `status` (`Received`, `Resolved` or `Closed`) and the team's answer thread oldest first. The answer also carries `next_cursor`. When `next_cursor` holds a value, older reports exist: call the tool again and pass that value as `cursor`. When `next_cursor` is null, you read the last report, so do not call the tool again. It is a poll, not a push: nothing tells you when the team answers, so call it when the user asks whether they replied.
 
@@ -240,7 +240,7 @@ Port forwarding:
 
 Git:
 - `get_credentials` — Get Access Credentials: 30-day unified credential (git + Postgres + platform API). The token for the HTTPS `git push` path; an SSH push needs no token.
-- `sync_git` — Sync Git: fetch the connected GitHub repo into the app's xhost mirror → status ({last_sync_status, last_sync_refs, ...}). Deploys auto-sync; use this to refresh without deploying.
+- `sync_git` — Sync Git: fetch the connected GitHub repo into the app's xhostd mirror → status ({last_sync_status, last_sync_refs, ...}). Deploys auto-sync; use this to refresh without deploying.
 
 SSH keys (git over SSH):
 - `register_ssh_key` — Register SSH Key: send the PUBLIC half of a keypair (`public_key`, optional `label`) and push over SSH with `git@git.xhostd.com:<owner>/<repo>.git`. Make the keypair in a subprocess (`ssh-keygen -t ed25519 -N "" -f ~/.ssh/xhost_ed25519`), so the private half never enters a tool call, and name the private half on the push (`GIT_SSH_COMMAND="ssh -i ~/.ssh/xhost_ed25519" git push xhost-ssh HEAD:master`). SSH is the first transport wherever a shell is available; register once per machine, because a key belongs to the account and not to one app. A key the platform holds already answers a conflict; the fingerprint is unique over the whole platform.
@@ -251,11 +251,11 @@ Activity:
 - `list_activity` — List Project Activity: recent events for an app, newest first.
 
 Feedback:
-- `submit_feedback` — Submit Feedback: send free-text feedback to the xhost team; call proactively on friction (many iterations, unclear tool/docs, hard-to-diagnose error, missing capability).
+- `submit_feedback` — Submit Feedback: send free-text feedback to the xhostd team; call proactively on friction (many iterations, unclear tool/docs, hard-to-diagnose error, missing capability).
 - `list_feedback` — List Feedback: one page of the account's reports (yours and the ones filed in the console) with the team's answers; `status` is `Received`, `Resolved` or `Closed`; follow `next_cursor` as `cursor` until it is null.
 
 Export (takeout):
-- `export_data` — Export Data: queue a portable takeout of a channel or a whole app (self-contained archive reloadable with standard tools, no xhost). Returns the export id.
+- `export_data` — Export Data: queue a portable takeout of a channel or a whole app (self-contained archive reloadable with standard tools, no xhostd). Returns the export id.
 - `get_export_status` — Get Export Status: poll an export by id; when ready, returns a short-lived download link (and a separate blobs link) for the archive.
 
 ## References

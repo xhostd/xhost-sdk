@@ -45,7 +45,7 @@ leaves the stylesheet as it is.
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Shipped without git — xhost recipe</title>
+<title>Shipped without git — xhostd recipe</title>
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -61,7 +61,7 @@ leaves the stylesheet as it is.
     is the one to use: it sends only what changed, so the tenth edit costs a
     few lines instead of the whole project.
   </p>
-  <p><a href="https://docs.xhostd.com/guides">xhost recipes</a></p>
+  <p><a href="https://docs.xhostd.com/guides">xhostd recipes</a></p>
 </main>
 </body>
 </html>
@@ -314,12 +314,12 @@ you clone that repo and continue your work.
 `commit_files` is refused outright, with
 
 ```text
-this app is GitHub-connected; xhost mirrors this repo read-only. Push to GitHub instead — changes sync to xhost automatically.
+this app is GitHub-connected; xhostd mirrors this repo read-only. Push to GitHub instead — changes sync to xhostd automatically.
 ```
 
 There is no way around this refusal. On a connected app, GitHub is the
-source, and the xhost repo is a read-only mirror of GitHub. Send the code to
-GitHub, and xhost syncs it from there. This guide describes the message and
+source, and the xhostd repo is a read-only mirror of GitHub. Send the code to
+GitHub, and xhostd syncs it from there. This guide describes the message and
 does not capture it. The demo app has no GitHub source, and a connection to
 GitHub would stay in place. `sync_git` is not the answer either. It refreshes
 that mirror, and it does not put code onto an app.

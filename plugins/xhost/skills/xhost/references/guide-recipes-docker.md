@@ -20,7 +20,7 @@ guide first if your app builds correctly and the problem is the database.
 ## What you get
 
 You get a FastAPI service. Your own Dockerfile builds it, and it connects to
-the Postgres database that xhost gives the channel. It serves a JSON health
+the Postgres database that xhostd gives the channel. It serves a JSON health
 response at `/`. It lists the notes at `GET /notes`. It makes a note at
 `POST /notes`. It marks one note done at `POST /notes/{id}/done`.
 
@@ -70,7 +70,7 @@ RUN uv pip install --system --no-cache -r requirements.txt
 COPY . .
 
 # Migrations run in the START command, never at build time. The build has
-# no DATABASE_URL at all — xhost injects env at run time only, never as
+# no DATABASE_URL at all — xhostd injects env at run time only, never as
 # build args — so a build-time migration cannot work even in principle.
 CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app:app --host 0.0.0.0 --port $XHOST_HTTP_PORT"]
 ```
@@ -98,7 +98,7 @@ the dependency step only when `requirements.txt` changes. If you copy your
 whole tree first, every source edit makes that layer invalid. A two-second
 deploy then becomes a two-minute deploy.
 
-**xhost injects environment variables at run time only, never as build
+**xhostd injects environment variables at run time only, never as build
 args.** There is no `--build-arg` path, and the build can read no secret
 store. Your `DATABASE_URL`, your `S3_*` credentials and every variable that
 you set appear in one place: the container's environment at container start.
@@ -140,7 +140,7 @@ from sqlalchemy import create_engine, text
 
 
 def database_url() -> str:
-    """xhost injects DATABASE_URL with the bare ``postgresql://`` scheme.
+    """xhostd injects DATABASE_URL with the bare ``postgresql://`` scheme.
 
     SQLAlchemy maps that scheme to psycopg2, which we do not ship. Name
     the driver explicitly so it loads psycopg 3 instead.
@@ -262,7 +262,7 @@ important one:
 https://<username>:<token>@git.xhostd.com/<username>/<app>.git
 ```
 
-**3. Clone the repo, then commit and push.** A new xhost repo is empty, and
+**3. Clone the repo, then commit and push.** A new xhostd repo is empty, and
 git tells you so. This warning is normal, not a fault:
 
 ```bash
@@ -418,7 +418,7 @@ crashed. Give its `container_index` to `get_runtime_log`.
 
 ### You expected build args to carry secrets or `DATABASE_URL`
 
-They cannot. xhost injects the environment at run time only. There is no
+They cannot. xhostd injects the environment at run time only. There is no
 `--build-arg` and no build-time secret mount. The build cannot read
 `DATABASE_URL`, because that value does not exist at build time. The symptom
 is a `RUN` step that fails on an absent variable, or an `os.environ[...]`

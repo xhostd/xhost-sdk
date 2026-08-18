@@ -1,7 +1,7 @@
 # Postgres recipe: migrations and snapshots
 
 This recipe shows the data layer of a real app. It tells you how to connect
-to the Postgres database that xhost gives you. It tells you how to run
+to the Postgres database that xhostd gives you. It tells you how to run
 alembic migrations safely. It tells you how to use the snapshots that the
 platform takes before every deploy. This guide is one half of a pair. Both
 guides describe the same app, and they divide the subject between them.
@@ -48,12 +48,12 @@ ship in one commit. The two guides divide the prose only, never the deploy.
 
 ### How the app connects
 
-xhost sets one value for the database connection, and you set nothing. The
+xhostd sets one value for the database connection, and you set nothing. The
 value is `DATABASE_URL`. Your channel owns a whole database, and your data is
 in the standard `public` schema of that database. Your SQL therefore uses
 plain table names — `notes`, not `someschema.notes`.
 
-xhost gives you `DATABASE_URL` with the bare `postgresql://` scheme:
+xhostd gives you `DATABASE_URL` with the bare `postgresql://` scheme:
 
 ```text
 postgresql://<role>:<password>@<host>:<port>/<database>
@@ -66,7 +66,7 @@ app: once in `app.py`, and once in `migrations/env.py`.
 
 ```python
 def database_url() -> str:
-    """xhost injects DATABASE_URL with the bare ``postgresql://`` scheme.
+    """xhostd injects DATABASE_URL with the bare ``postgresql://`` scheme.
 
     SQLAlchemy maps that scheme to psycopg2, which we do not ship. Name
     the driver explicitly so it loads psycopg 3 instead.
@@ -124,7 +124,7 @@ formatter = generic
 format = %(levelname)-5.5s [%(name)s] %(message)s
 ```
 
-The absent `sqlalchemy.url` is the point. xhost injects your credentials, and
+The absent `sqlalchemy.url` is the point. xhostd injects your credentials, and
 it rotates them independently of your code. Never put them in a file that you
 commit.
 
@@ -338,7 +338,7 @@ CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app:app --host 0.0.0.0 --
 ```
 
 The start command is the *only* correct place for `alembic upgrade head`.
-xhost injects environment variables at run time only, never as build args. A
+xhostd injects environment variables at run time only, never as build args. A
 build thus has no `DATABASE_URL`, and a migration at build time cannot work.
 On the `app` template the same line goes in `launch.sh`, never in
 `install.sh`, for the same reason.
@@ -432,7 +432,7 @@ $ curl -sS -X POST https://recipe-docker-pg-docs.xhostd.com/notes \
 {"id":2}
 ```
 
-xhost refuses a restore of **`prod`** unless the app's environment holds
+xhostd refuses a restore of **`prod`** unless the app's environment holds
 `XHOST_ALLOW_PROD_RESTORE=1`. The refusal reads `prod_restore_blocked`, and
 it is the guard at work, not a fault. Keep the guard until you are sure that
 you want the restore. A restore saves no snapshot of the state that it
@@ -478,7 +478,7 @@ the column's default. The same default fills the column for the rows already
 in the table when the migration runs. A migration without that default fails
 in exactly that case.
 
-There is a second guard. xhost refuses a restore while a deploy on the
+There is a second guard. xhostd refuses a restore while a deploy on the
 channel is queued or in progress. Wait for the deploy to finish, then try
 again.
 
@@ -521,7 +521,7 @@ as another package needs psycopg 3.
 ### The migration ran at build time, or not at all
 
 `alembic upgrade head` cannot work in a `RUN` step, or in `install.sh` on the
-`app` template. xhost injects the environment at run time only, never as
+`app` template. xhostd injects the environment at run time only, never as
 build args, so a build has no `DATABASE_URL`. The symptom changes with the
 way your code reads the variable. You see a `KeyError`, a refused connection,
 or a migration that applies to nothing.

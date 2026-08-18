@@ -22,10 +22,10 @@ must set the project's **port forwarding toggle** to on in the web console. The
 sections below give the full detail on both. There is no tool for the toggle,
 and the platform refuses it to an agent, so an agent must ask the user.
 
-**"Can I SSH into my app?"** Yes, and this recipe is the method. xhost runs no
+**"Can I SSH into my app?"** Yes, and this recipe is the method. xhostd runs no
 SSH daemon and no SSH gateway, and it will not add one. To route SSH for many
 tenants through one port, a gateway must join the key exchange. That gateway
-must also translate an xhost token into SSH authentication, and it must manage
+must also translate an xhostd token into SSH authentication, and it must manage
 the host keys. A route on the destination port needs none of that.
 
 So you install your own `sshd` in your container, and you bind it to
@@ -34,7 +34,7 @@ your own config and your own users. `scp`, `sftp` and `-L` all work, because the
 daemon is a real `sshd`.
 
 The costs are these. The method works only on the `app` and the `docker`
-templates, never on `static`. It uses the one forward port of the channel. xhost
+templates, never on `static`. It uses the one forward port of the channel. xhostd
 does not install, supervise or support your `sshd`.
 
 ## The files
@@ -158,7 +158,7 @@ outside it, exactly as the HTTP probe does. It cannot reach a socket on
 `127.0.0.1`.
 
 **The server limits the line, and the handler writes a log line instead of a
-traceback.** The endpoint is public, and xhost authenticates nothing on a
+traceback.** The endpoint is public, and xhostd authenticates nothing on a
 forward port. Your app is therefore the only control on the connection.
 `readline(MAX_LINE)` limits the buffer when a client sends bytes and no newline.
 `handle_error` writes one log line for a client that stops in the middle of a
@@ -270,7 +270,7 @@ Your credential is the token from `get_credentials()`. Put it in the
 https://<username>:<token>@git.xhostd.com/<username>/<app>.git
 ```
 
-A new xhost repo is empty, and git reports this. The warning is correct, and it
+A new xhostd repo is empty, and git reports this. The warning is correct, and it
 is not a fault:
 
 ```bash
@@ -348,9 +348,9 @@ expose_port(app_name="recipe-tcp", channel="prod")
 true` confirms that the two conditions are satisfied.
 
 That host and that port come from the real run, so the response is the true
-output. **Do not connect to that address.** xhost released the endpoint, and a
+output. **Do not connect to that address.** xhostd released the endpoint, and a
 released port goes back to the pool for another service. A connection to a port
-from a transcript reaches a different service, not this recipe. xhost allocates
+from a transcript reaches a different service, not this recipe. xhostd allocates
 a port for each exposure, so use the values from your own call.
 
 Read these three properties of the address before you give it to your users:

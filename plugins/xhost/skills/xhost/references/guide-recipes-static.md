@@ -25,7 +25,7 @@ One file, at the repo root.
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Static landing — xhost recipe</title>
+<title>Static landing — xhostd recipe</title>
 <style>
   :root { color-scheme: light dark; }
   body {
@@ -57,7 +57,7 @@ One file, at the repo root.
     <code>/</code>. Add more files beside it and they are served at their
     matching paths.
   </p>
-  <p><a href="https://docs.xhostd.com/guides">xhost recipes</a></p>
+  <p><a href="https://docs.xhostd.com/guides">xhostd recipes</a></p>
 </main>
 </body>
 </html>
@@ -124,7 +124,7 @@ important:
 https://<username>:<token>@git.xhostd.com/<username>/<app>.git
 ```
 
-**3. Clone, commit, push.** A new xhost repo is empty, and git tells you so.
+**3. Clone, commit, push.** A new xhostd repo is empty, and git tells you so.
 The warning is correct; it is not a fault:
 
 ```bash

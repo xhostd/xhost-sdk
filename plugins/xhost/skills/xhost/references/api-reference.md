@@ -1,4 +1,4 @@
-# xhost API Reference
+# xhostd API Reference
 
 This is the underlying HTTP API that the MCP tools wrap. For normal agent usage, prefer the `mcp__xhost__*` tools — they handle auth automatically via OAuth and do not require any user-facing token step. This reference is here for deep dives, debugging, or direct programmatic access.
 
@@ -703,7 +703,7 @@ Return the channel's object-store status and usage.
 
 ## POST /apps/{app_id}/channels/{channel_id}/domains
 
-Attach a custom domain to a channel (max 5 per channel; domains are globally unique across xhost). Idempotent for the same channel — re-POSTing the same domain returns the existing row with its token preserved. Returns the DNS records the user must create at their registrar.
+Attach a custom domain to a channel (max 5 per channel; domains are globally unique across xhostd). Idempotent for the same channel — re-POSTing the same domain returns the existing row with its token preserved. Returns the DNS records the user must create at their registrar.
 
 **Required scope:** `deploy:*`
 
@@ -789,7 +789,7 @@ Detach a custom domain. Removes the routing and stops certificate renewals; the 
 
 Give a channel a public `host:port` that carries raw TCP into its container. Idempotent per channel: a channel that already has an endpoint comes back **200** with the same `host`/`port` and its `allow_cidrs` replaced by the submitted list; a fresh allocation is **201**. The address is stable for the life of the exposure, so it is safe to hand out.
 
-Inside the container the process must listen on `0.0.0.0` at the port in `$XHOST_FORWARD_PORT` (a fixed platform-wide port injected into every non-`static` container). xhost pumps the bytes through unmodified — no TLS is added and nothing is authenticated. Requires the app's **admin** role: a member gets `not_found`, never `permission_denied`, so a member cannot tell "this channel has no endpoint" from "I may not manage it". No redeploy is needed either way — a container created before this feature shipped is the one exception: deploy the channel once and it picks the port up, otherwise the endpoint is silently dead (resolve answers 503).
+Inside the container the process must listen on `0.0.0.0` at the port in `$XHOST_FORWARD_PORT` (a fixed platform-wide port injected into every non-`static` container). xhostd pumps the bytes through unmodified — no TLS is added and nothing is authenticated. Requires the app's **admin** role: a member gets `not_found`, never `permission_denied`, so a member cannot tell "this channel has no endpoint" from "I may not manage it". No redeploy is needed either way — a container created before this feature shipped is the one exception: deploy the channel once and it picks the port up, otherwise the endpoint is silently dead (resolve answers 503).
 
 **Required scope:** `channel:*`
 
@@ -856,7 +856,7 @@ Release the channel's public endpoint. New connections are refused immediately a
 
 ## POST /apps/{app_id}/github/sync
 
-For apps connected to a GitHub source: fetch the latest GitHub commits into the app's internal xhost mirror without deploying. Deploys auto-sync anyway; use this to refresh the mirror or surface sync errors on their own. Requires the admin role (or higher) on the app. Not a protected action — it pulls the remote the owner already chose, so it never answers `protected_action`. Connecting and disconnecting a GitHub repo ARE protected actions, and neither has an MCP tool.
+For apps connected to a GitHub source: fetch the latest GitHub commits into the app's internal xhostd mirror without deploying. Deploys auto-sync anyway; use this to refresh the mirror or surface sync errors on their own. Requires the admin role (or higher) on the app. Not a protected action — it pulls the remote the owner already chose, so it never answers `protected_action`. Connecting and disconnecting a GitHub repo ARE protected actions, and neither has an MCP tool.
 
 **Request body:** None
 
@@ -1097,7 +1097,7 @@ Delete one SSH key the caller owns. The delete is the whole revoke, so a push wi
 
 ## POST /feedback
 
-Submit free-text feedback to the xhost team about platform friction (many iterations, an unclear tool/error, a missing capability). Attributed to the authenticated user. Fire-and-forget.
+Submit free-text feedback to the xhostd team about platform friction (many iterations, an unclear tool/error, a missing capability). Attributed to the authenticated user. Fire-and-forget.
 
 **Request body:**
 ```json
@@ -1125,7 +1125,7 @@ Submit free-text feedback to the xhost team about platform friction (many iterat
 
 ## GET /feedback
 
-List the authenticated user's feedback reports, newest first, each with the xhost team's answers. One call answers one page of the account's reports, whichever surface filed them.
+List the authenticated user's feedback reports, newest first, each with the xhostd team's answers. One call answers one page of the account's reports, whichever surface filed them.
 
 **Query parameters:**
 - `limit` (integer, optional) — how many reports to return, 1–200. Default 50.

@@ -142,7 +142,7 @@ the SSH commands.
 Put it in the **password** field of the remote URL:
 `https://<username>:<token>@git.xhostd.com/<username>/<app>.git`.
 
-**3. Clone, commit and push.** A new xhost repo is empty, and git reports this.
+**3. Clone, commit and push.** A new xhostd repo is empty, and git reports this.
 The warning is correct, and it is not a fault:
 
 ```bash

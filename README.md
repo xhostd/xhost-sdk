@@ -1,6 +1,6 @@
-# xhost SDK
+# xhostd SDK
 
-Claude Code plugin for [xhost](https://xhostd.com) — deploy static sites and dynamic applications. Push code, get HTTPS URLs.
+Claude Code plugin for [xhostd](https://xhostd.com) — deploy static sites and dynamic applications. Push code, get HTTPS URLs.
 
 ## Install
 
@@ -39,7 +39,7 @@ Or invoke it explicitly:
 
 The single `/xhost` skill handles account setup, app creation, deploys, previews, and status checks. Claude figures out what you need from context.
 
-## What xhost supports
+## What xhostd supports
 
 - **Static sites** — nginx serves your HTML/CSS/JS
 - **Node.js apps** — Express, Next.js, Fastify, Vite (give `install.sh` + `launch.sh`)
@@ -53,9 +53,9 @@ The single `/xhost` skill handles account setup, app creation, deploys, previews
 
 ## How it works
 
-1. You push code to xhost's git server
+1. You push code to xhostd's git server
 2. You trigger a deploy (explicitly, via `/xhost` or the API)
-3. xhost runs your `install.sh` (install the dependencies) then `launch.sh` (start the app on `$XHOST_HTTP_PORT`)
+3. xhostd runs your `install.sh` (install the dependencies) then `launch.sh` (start the app on `$XHOST_HTTP_PORT`)
 4. Your app is live over HTTPS with a wildcard cert
 
 A Docker app runs the `CMD` in your `Dockerfile` in place of the two scripts. A static site needs no script, because nginx serves the committed files.
