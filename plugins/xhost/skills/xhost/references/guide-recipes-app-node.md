@@ -133,6 +133,12 @@ get_credentials()
    "scopes": ["blob:*", "deploy:*", "repo:*", "db:*", "channel:*"]}
 ```
 
+**This recipe shows the HTTPS steps.** Where a shell is available, SSH is the
+first git transport, because the private half of the key never enters a tool
+call. One registration then covers every app on that machine. The
+[git guide](https://docs.xhostd.com/guides/git) holds the transport branch and
+the SSH commands.
+
 Put it in the **password** field of the remote URL:
 `https://<username>:<token>@git.xhostd.com/<username>/<app>.git`.
 

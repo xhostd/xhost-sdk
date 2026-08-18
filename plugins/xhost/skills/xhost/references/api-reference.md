@@ -1015,7 +1015,83 @@ Mint a 30-day unified credential for the authenticated user. The returned token 
 }
 ```
 
-To push: set the remote with the token in the **password** field — `https://<username>:<token>@git.xhostd.com/<username>/<app>.git` (the per-app `repo_url` from `GET /apps/{app_id}` already has the right path), then `git push`. Any username works; the password is what git.xhostd.com checks. (git.xhostd.com also accepts the token via `Authorization: Bearer` — e.g. `git config http.extraHeader "Authorization: Bearer <token>"` — but native `git` uses the Basic-password path above.) The token is valid for 30 days; re-mint after expiry.
+**SSH is the first git transport wherever a shell is available, and it needs no token** — see `POST /ssh-keys` below. This token stays required for the HTTPS push, for Postgres and for the platform API.
+
+To push over HTTPS: set the remote with the token in the **password** field — `https://<username>:<token>@git.xhostd.com/<username>/<app>.git` (the per-app `repo_url` from `GET /apps/{app_id}` already has the right path), then `git push`. Any username works; the password is what git.xhostd.com checks. (git.xhostd.com also accepts the token via `Authorization: Bearer` — e.g. `git config http.extraHeader "Authorization: Bearer <token>"` — but native `git` uses the Basic-password path above.) The token is valid for 30 days; re-mint after expiry.
+
+---
+
+## POST /ssh-keys
+
+Register one OpenSSH public key on the authenticated user's account, for git over SSH. A key belongs to the account, not to one app. Send the PUBLIC half only — the content of a `.pub` file; the platform stores no private key.
+
+**SSH is the first git transport wherever a shell is available.** The private half never enters a tool call, and one registration covers every app on the machine. Reuse `~/.ssh/xhost_ed25519` if it exists; otherwise make the keypair at exactly that path — never in the project directory, and never with a per-project, per-app or per-tool suffix, which would only mint a second key on the account. HTTPS with the token in the remote URL is the fallback: take it where the network blocks outbound port 22, or after an SSH push fails.
+
+**Request body:**
+```json
+{
+  "public_key": "ssh-ed25519 AAAAC3Nza... agent@box",
+  "label": "claude-code"
+}
+```
+
+- `public_key` (string, required) — one OpenSSH public-key line.
+- `label` (string, optional) — your own name for the key; max 64 characters.
+
+Unknown fields are refused: this route answers **422** for a body that holds a field it does not declare (e.g. `name` in place of `label`).
+
+**Response (200):**
+```json
+{
+  "id": "uuid",
+  "label": "claude-code",
+  "algo": "ssh-ed25519",
+  "fingerprint": "SHA256:abc...",
+  "created_at": "2026-08-17T10:30:00Z",
+  "last_used_at": null
+}
+```
+
+Then push: `git remote add xhost-ssh "git@git.xhostd.com:<username>/<app>.git"` and `GIT_SSH_COMMAND="ssh -i ~/.ssh/xhost_ed25519" git push xhost-ssh HEAD:master`. The platform also notifies the user about the new key, with its label and fingerprint.
+
+**Errors:**
+- `bad_request` (400) — the line is no valid OpenSSH public key, or the label is longer than 64 characters
+- `conflict` (409) — the platform holds that fingerprint already; a fingerprint is unique platform-wide. For the key at `~/.ssh/xhost_ed25519` this only means an earlier session registered it, so the key works — push with it. Never mint a second keypair to clear a 409.
+
+---
+
+## GET /ssh-keys
+
+List the authenticated user's SSH keys, newest first. Metadata only — no route returns a key.
+
+**Response (200):**
+```json
+{
+  "ssh_keys": [
+    {
+      "id": "uuid",
+      "label": "claude-code",
+      "algo": "ssh-ed25519",
+      "fingerprint": "SHA256:abc...",
+      "created_at": "2026-08-17T10:30:00Z",
+      "last_used_at": null
+    }
+  ]
+}
+```
+
+`last_used_at` is null while the key served no git command yet.
+
+---
+
+## DELETE /ssh-keys/{key_id}
+
+Delete one SSH key the caller owns. The delete is the whole revoke, so a push with that key fails at once.
+
+**Response:** `204 No Content`
+
+**Errors:**
+- `not_found` (404) — no such key, or the key belongs to another account
 
 ---
 
@@ -1199,6 +1275,7 @@ The `<name>` portion (when not `*`) must match: `^[A-Za-z0-9][A-Za-z0-9/_\-\.]*$
 | `not_found` | 404 | Resource does not exist or is not owned by caller |
 | `bad_request` | 400 | Validation failure (see message for details) |
 | `conflict` | 409 | State conflict (e.g. `domain_taken`, `channel_busy`, export already running) |
+| *(no code)* | 422 | A body that fails validation — a missing field on any route, or an unknown field on `POST /ssh-keys`, the one route that refuses one. This answer carries FastAPI's `{"detail": [...]}` shape, not the `{"error": {...}}` envelope, so an MCP client shows it as a pydantic report. Read the field name in `detail`, correct it, and call again. Do not retry the same body: it fails again |
 | `bad_gateway` | 502 | Upstream service error |
 | `service_unavailable` | 503 | Dependent service degraded (e.g. `postgres_unavailable`, `blob_unavailable`) |
 | `internal_error` | 500 | Unexpected server error |

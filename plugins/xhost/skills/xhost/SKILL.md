@@ -32,7 +32,7 @@ Create the app, get its code into the repo, deploy. Names below are shown as `mc
 Read the recipe for the shape of app you build before step 1. Each recipe gives one complete app: every file, the exact calls, and the failure modes of that shape. The shape recipes are `references/guide-recipes-static.md`, `references/guide-recipes-app-node.md` (Express), `references/guide-recipes-app-python.md` (FastAPI) and `references/guide-recipes-docker.md`. `references/guide-index.md` lists every recipe.
 
 1. **`mcp__xhost__create_app`** — args: `name`, `template` (`"static"` for plain HTML/CSS/JS, `"app"` for projects with `install.sh`/`launch.sh`, `"docker"` for projects with their own `Dockerfile` at the repo root). Returns the app object with `id`, `repo_url`, and `channels[0]` (the auto-created `prod` channel) including its `id` and `hostname`. Hold onto `app_id` and the prod `channel_id`.
-2. **`git push` to the app's `repo_url`** — the standard path, whatever the size of the project. A push sends only the diff, so the second and every later edit is incremental, and it costs far fewer tokens than round-tripping whole file contents through a tool call. The five mechanical steps are in **Pushing code with git** below. **Pushing stores your code; it does not deploy.**
+2. **`git push` to the app's `repo_url`** — the standard path, whatever the size of the project. A push sends only the diff, so the second and every later edit is incremental, and it costs far fewer tokens than round-tripping whole file contents through a tool call. The transport choice and the mechanical steps are in **Pushing code with git** below. **Pushing stores your code; it does not deploy.**
    - **Fallback, one case only:** when git is not available on the machine you are working on (a runtime with no shell), use **`mcp__xhost__commit_files`** — args: `app_id`, `message`, `files` (a `{path: content-or-null}` map; string upserts, null deletes), `ref` (default `"master"`). Returns `{sha}`. Send only files that are changing. On GitHub-connected apps this returns an error; push to GitHub instead.
 3. **`mcp__xhost__deploy`** — args: `app_id`, `channel_id`, and either `ref` (a branch name, e.g. `"master"`; xhostd resolves it to that branch's current head — this is the form to use after a push) or `sha` (an exact commit — what `commit_files` returned). Returns `{deploy_id, channel_id, status: "queued"}`.
 
@@ -46,21 +46,40 @@ Naming rules: app and channel names are DNS labels — `^[a-z0-9]([a-z0-9-]*[a-z
 
 This is step 2 of the golden path, in full. It is the standard path for every project, whatever its size — first commit and hundredth alike. Full guide: `references/guide-git.md` (<https://docs.xhostd.com/guides/git>).
 
-1. Call **`mcp__xhost__get_credentials`**. Returns `{token, username, expires_at, scopes}`. The token expires in 30 days and is the unified credential — one `xh_` secret carrying the full default scopes, so it is your git password, your Postgres password, and your platform API bearer at once.
-2. Get the app's `repo_url` via `mcp__xhost__get_app` (`app_id`). It looks like `https://git.xhostd.com/<username>/<app>.git`.
-3. Configure the remote with the token in the **password** field (any username works — the password is what git.xhostd.com checks):
+**Pick the path from what the machine can do, before you push — never after a failure:**
+
+- **No shell** — git is not available on the machine you are working on, such as the claude.ai connector. Use `commit_files`, then `deploy` the `sha` it returns. Do not reach for `sync_git` here: that tool only refreshes the mirror of a GitHub-connected app and is no part of this flow.
+- **A shell** — push over **SSH**, steps S1–S4 below.
+- **Outbound port 22 blocked, or the SSH push fails** — the fallback is **HTTPS**, steps H1–H5 below.
+
+SSH is first because the private half of the key never enters a tool call. An HTTPS remote holds the token, and some agent runtimes refuse a tool call whose content holds a secret; such a refusal is not a clean error you can act on. SSH costs no extra step in the steady state: you make a keypair only when `~/.ssh/xhost_ed25519` is absent, and `register_ssh_key` is account-level, not per-app — one call covers every app on that machine.
+
+**SSH — the first transport:**
+
+S1. Get the app's `repo_url` via `mcp__xhost__get_app` (`app_id`). It looks like `https://git.xhostd.com/<username>/<app>.git` and carries the `<username>` and `<app>` the SSH remote needs. **An SSH push needs no token.**
+S2. If `~/.ssh/xhost_ed25519` exists, go to S3. Otherwise make a keypair in a subprocess — `ssh-keygen -t ed25519 -N "" -f ~/.ssh/xhost_ed25519` — so the private half goes straight to disk and never enters a tool call. **Always use exactly that path.** Never put the key in the project directory, and never add a per-project, per-app or per-tool suffix: the path is in `$HOME`, so every Claude Code session, IDE window and project on the machine reuses the one key. A different path mints a second keypair, which registers another key on the account and notifies the user each time.
+S3. Call **`mcp__xhost__register_ssh_key`** with the content of `~/.ssh/xhost_ed25519.pub` and a `label` that names the machine. Skip this call when S2 reused an existing key. A fingerprint is unique platform-wide, so a key the platform already holds answers `409` — for the key at `~/.ssh/xhost_ed25519` that only means an earlier session registered it, so the key works and you push with it. Never mint a second keypair to clear a `409`.
+S4. `git remote add xhost-ssh "git@git.xhostd.com:<username>/<app>.git"` then `GIT_SSH_COMMAND="ssh -i ~/.ssh/xhost_ed25519" git push xhost-ssh HEAD:master`. Then trigger the build with **`mcp__xhost__deploy`** — pushing stores code but does not deploy.
+
+`mcp__xhost__list_ssh_keys` returns the account's keys (metadata only) and `mcp__xhost__delete_ssh_key` revokes one by `key_id`.
+
+**HTTPS — the fallback:**
+
+H1. Call **`mcp__xhost__get_credentials`**. Returns `{token, username, expires_at, scopes}`. The token expires in 30 days and is the unified credential — one `xh_` secret carrying the full default scopes, so it is your git password, your Postgres password, and your platform API bearer at once.
+H2. Get the app's `repo_url` via `mcp__xhost__get_app` (`app_id`). It looks like `https://git.xhostd.com/<username>/<app>.git`.
+H3. Configure the remote with the token in the **password** field (any username works — the password is what git.xhostd.com checks):
    ```
    git remote add xhost "https://<username>:<token>@git.xhostd.com/<username>/<app>.git"
    ```
-   (or `git remote set-url xhost ...` if it already exists). git.xhostd.com also accepts the token as an `Authorization: Bearer` header (`git config http.extraHeader "Authorization: Bearer <token>"`), but the password field is the normal path.
-4. `git push xhost HEAD:master` (or `HEAD:<your-branch>`). xhost binds prod to `master`, but a fresh `git init` defaults to `main`. The explicit refspec pushes the current branch under the pinned name.
-5. Trigger the build with **`mcp__xhost__deploy`** — pushing stores code but does not deploy. Pass `ref: "master"` (or the branch name) so xhostd resolves to HEAD; or pass an explicit `sha`.
+   (or `git remote set-url xhost ...` if it already exists). git.xhostd.com also accepts the token as an `Authorization: Bearer` header (`git config http.extraHeader "Authorization: Bearer <token>"`), but the password field is the normal HTTPS path.
+H4. `git push xhost HEAD:master` (or `HEAD:<your-branch>`).
+H5. Trigger the build with **`mcp__xhost__deploy`** — pushing stores code but does not deploy. Pass `ref: "master"` (or the branch name) so xhostd resolves to HEAD; or pass an explicit `sha`.
+
+Both transports reach the same repo. `HEAD:master` on either one: xhost binds prod to `master`, but a fresh `git init` defaults to `main`, so the explicit refspec pushes the current branch under the pinned name.
 
 The same token is your **Postgres password** when external database access is enabled in the console: `postgresql://<username>:<token>@db.xhostd.com:5432/<db>?sslmode=require` (`<db>` = app name for `prod`, else `<channel>-<app>`).
 
 Rules: the token is short-lived; never commit it into the repo or write it into a file the user might check in. Re-mint by calling `get_credentials` again after expiry.
-
-Where git genuinely is not available — a runtime with no shell, such as the claude.ai connector — use `commit_files` instead, then `deploy` the `sha` it returns. Do not reach for `sync_git` here: that tool only refreshes the mirror of a GitHub-connected app and is no part of this flow.
 
 ## Runtime contract — what makes a deploy succeed
 
@@ -170,7 +189,7 @@ It's fire-and-forget: describe the friction in your own words, pass `app_id` whe
 
 To read those answers, call **`mcp__xhost__list_feedback`** (optional `limit`, optional `cursor`). One call answers one page of the account's reports — the ones you filed and the ones the user filed in the console — newest first, each with `status` (`Received`, `Resolved` or `Closed`) and the team's answer thread oldest first. The answer also carries `next_cursor`. When `next_cursor` holds a value, older reports exist: call the tool again and pass that value as `cursor`. When `next_cursor` is null, you read the last report, so do not call the tool again. It is a poll, not a push: nothing tells you when the team answers, so call it when the user asks whether they replied.
 
-## All 37 tools
+## All 40 tools
 
 Apps:
 - `list_apps` — List Apps: all apps owned by the user, with channels.
@@ -219,8 +238,13 @@ Port forwarding:
 - `unexpose_port` — Unexpose Port: release the endpoint; new connections are refused at once, connections already established keep running until they close on their own (to drop those too, `deploy` the channel afterwards — cutover replaces the container, ending every session into the old one), and re-exposing gets a new address.
 
 Git:
-- `get_credentials` — Get Access Credentials: 30-day unified credential (git + Postgres + platform API). The token for the standard `git push` path.
+- `get_credentials` — Get Access Credentials: 30-day unified credential (git + Postgres + platform API). The token for the HTTPS `git push` path; an SSH push needs no token.
 - `sync_git` — Sync Git: fetch the connected GitHub repo into the app's xhost mirror → status ({last_sync_status, last_sync_refs, ...}). Deploys auto-sync; use this to refresh without deploying.
+
+SSH keys (git over SSH):
+- `register_ssh_key` — Register SSH Key: send the PUBLIC half of a keypair (`public_key`, optional `label`) and push over SSH with `git@git.xhostd.com:<owner>/<repo>.git`. Make the keypair in a subprocess (`ssh-keygen -t ed25519 -N "" -f ~/.ssh/xhost_ed25519`), so the private half never enters a tool call, and name the private half on the push (`GIT_SSH_COMMAND="ssh -i ~/.ssh/xhost_ed25519" git push xhost-ssh HEAD:master`). SSH is the first transport wherever a shell is available; register once per machine, because a key belongs to the account and not to one app. A key the platform holds already answers a conflict; the fingerprint is unique over the whole platform.
+- `list_ssh_keys` — List SSH Keys: the account's keys, newest first, metadata only (`id`, `label`, `algo`, `fingerprint`, `created_at`, `last_used_at`). A key itself is never returned.
+- `delete_ssh_key` — Delete SSH Key: by `key_id`. The delete is the whole revoke, so a push with that key fails at once.
 
 Activity:
 - `list_activity` — List Project Activity: recent events for an app, newest first.

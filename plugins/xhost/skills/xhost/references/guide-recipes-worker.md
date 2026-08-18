@@ -188,6 +188,12 @@ Every app owns a git repo, and **`git push` → `deploy` is the standard path**.
 Use `commit_files` only when the machine has no git. A deploy reads a commit
 from the repo, and it does not know the source of that commit.
 
+**This recipe shows the HTTPS steps.** Where a shell is available, SSH is the
+first git transport, because the private half of the key never enters a tool
+call. One registration then covers every app on that machine. The
+[git guide](https://docs.xhostd.com/guides/git) holds the transport branch and
+the SSH commands.
+
 Your credential is the token from `get_credentials()`. Put it in the
 **password** field of the remote URL:
 

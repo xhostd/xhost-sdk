@@ -45,15 +45,28 @@ Remember `app_id` (`f1e2…`) and the prod channel's `id` (`c0a1…`).
 
 Write the files into a working directory, then push them to the app's own repo. **`git push` → `deploy` is the standard path**, for the first commit and every one after it: a push sends only the diff, so each later edit stays incremental instead of round-tripping whole file contents through a tool call.
 
-The five mechanical steps are in **Pushing code with git** in SKILL.md. In short: call `mcp__xhost__get_credentials` for a 30-day token — one `xh_` secret that is the git password, the Postgres password and the platform API bearer at once — put it in the **password** field of the remote URL (`repo_url` came back in step 2), and push:
+The full step list is in **Pushing code with git** in SKILL.md. Pick the path from what the machine can do, before you push — never after a failure. With a shell, **SSH is the first transport**: the private half of the key never enters a tool call, and one registration covers every app on the machine. Reuse `~/.ssh/xhost_ed25519` if it exists; otherwise make a keypair in a subprocess and register the public half once:
 
 ```
+ssh-keygen -t ed25519 -N "" -f ~/.ssh/xhost_ed25519   # only if the file is absent
+# then: mcp__xhost__register_ssh_key(public_key=<content of ~/.ssh/xhost_ed25519.pub>, label="this machine")
 git init && git add -A && git commit -m "initial site"
+git remote add xhost-ssh "git@git.xhostd.com:alice/lisbon-coffee.git"
+GIT_SSH_COMMAND="ssh -i ~/.ssh/xhost_ed25519" git push xhost-ssh HEAD:master
+```
+
+An SSH push needs no token — the `repo_url` from step 2 gives the username and the app name.
+
+Always use exactly the path `~/.ssh/xhost_ed25519` — never the project directory, and never a per-project, per-app or per-tool suffix. It sits in `$HOME`, so every Claude Code session, IDE window and project on the machine reuses the one key instead of registering another.
+
+**HTTPS fallback:** where outbound port 22 is blocked, or the SSH push fails, call `mcp__xhost__get_credentials` for a 30-day token — one `xh_` secret that is the git password, the Postgres password and the platform API bearer at once — put it in the **password** field of the remote URL (`repo_url` came back in step 2), and push:
+
+```
 git remote add xhost "https://alice:<token>@git.xhostd.com/alice/lisbon-coffee.git"
 git push xhost HEAD:master
 ```
 
-`HEAD:master` because prod is bound to `branch:master` while a fresh `git init` defaults to `main`. Never write the token into a file the user might commit. **Pushing stores the code; it does not deploy** — that is step 4.
+`HEAD:master` on either transport, because prod is bound to `branch:master` while a fresh `git init` defaults to `main`. Never write the token into a file the user might commit. **Pushing stores the code; it does not deploy** — that is step 4.
 
 **Fallback, one case only:** when git is not available on the machine you are working on — a runtime with no shell, such as the claude.ai connector — use `mcp__xhost__commit_files(app_id, message, files, ref="master")` instead. `files` is a `{path: content-or-null}` map: a string upserts, `null` deletes, and a path you don't name is left alone, so send only what is changing. It returns `{"sha": "abc123…"}`, which is what you then deploy. On GitHub-connected apps it is refused — push to GitHub instead. Worked example: <https://docs.xhostd.com/guides/recipes-commit-files>.
 
