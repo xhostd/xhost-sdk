@@ -106,8 +106,8 @@ detail, or when you write a report for the user.
 
 ### What the latency figures cover
 
-The `latency` figures cover the **server side** alone. Each figure starts when
-the platform reads the request. It stops when the platform writes the last byte
+The `latency` figures cover the **server-side span** alone. Each figure starts
+when the platform reads the request. It stops when the platform writes the last byte
 of the reply. It excludes the steps before that — the TCP handshake and the TLS
 handshake — so a stall while the visitor connects is invisible here. Never
 report the figure as an end-to-end time.
