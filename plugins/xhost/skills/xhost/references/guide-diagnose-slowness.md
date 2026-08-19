@@ -3,9 +3,9 @@
 An app is slow, or it answers with an error, or the deploy log is clean but
 the URL is not correct. One tool answers all three questions. Call
 `get_app_health(app_name, channel)`. It reads the resources of the account,
-the container of the channel, the recent builds and the channel database in
-one call. It then gives you a diagnosis and, with each cause, the action for
-that cause.
+the container of the channel, the recent builds, the channel database and how
+long the channel took to answer its recent requests, in one call. It then
+gives you a diagnosis and, with each cause, the action for that cause.
 
 This guide is for an agent that acts for a user. It shows the order to read
 the reply, and the rule that each part of the reply carries.
@@ -21,7 +21,8 @@ all-channel form. If two apps that you can reach have the same name, qualify
 the name as `owner_username/app_name`.
 
 There is no window argument. The tool reads the last hour of resource
-figures, and the last day of build events.
+figures, and the last day of build events. The `latency` block carries its
+own `window_hours`, so take that number from the payload.
 
 The reply has this shape:
 
@@ -33,13 +34,14 @@ The reply has this shape:
   "runtime":  { "available": true, "reason": null, ... },
   "build":    { "available": true, "reason": null, ... },
   "database": { "available": true, "reason": null, ... },
+  "latency":  { "available": true, "reason": null, ... },
   "findings": [ ... ]
 }
 ```
 
 ## Read `findings` first
 
-`findings` is the diagnosis. The four blocks are the measurements behind it.
+`findings` is the diagnosis. The five blocks are the measurements behind it.
 Read the findings, and act on them. Do not read the figures first, and do not
 compute your own conclusion from them.
 
@@ -99,6 +101,32 @@ detail, or when you write a report for the user.
   memory, and when the last one was.
 - **`database`** — the size of the channel database, its cache-hit percent,
   and its slowest statements.
+- **`latency`** — how long this channel took to answer its recent requests:
+  the p50, p95, p99 and the worst request, plus the share of slow requests.
+
+### What the latency figures cover
+
+The `latency` figures cover the **server side** alone. Each figure starts when
+the platform reads the request. It stops when the platform writes the last byte
+of the reply. It excludes the steps before that — the TCP handshake and the TLS
+handshake — so a stall while the visitor connects is invisible here. Never
+report the figure as an end-to-end time.
+
+The transfer of the reply is **inside** the figure, so a slow visitor link
+raises it. A high figure alone therefore does not prove that the app is slow.
+
+Inside that span, one figure covers three legs together: the time the app
+took to answer, the transfer of the reply, and the work of the platform. The
+figure therefore names no slow leg on its own. Read `resource` and `database`
+to find the leg: a CPU limit or high memory pressure explains the first, and
+a slow statement or a low cache-hit percent explains the third.
+
+`p50_ms`, `p95_ms` and `p99_ms` are upper bounds off histogram edges, not
+measured durations. 95 of every 100 requests finished under `p95_ms`. Only
+`max_ms` is a measured duration, and it is the worst request of the window.
+
+`requests: 0` with null percentiles means the platform measured nothing. It
+never means that the channel is fast.
 
 ### An unavailable block is not an error
 
@@ -138,8 +166,9 @@ The health tool names the cause. Three other tools give you the detail.
   in full.
 - **`get_deploy_log`** — on a `build_oom_killed` finding, read the build that
   the kernel stopped, and find the step that used the memory.
-- **`get_app_stats`** — the health tool reads one hour. Use the stats tool
-  for a 24-hour, 7-day or 30-day view of the traffic.
+- **`get_app_stats`** — the health tool reads one hour of resource figures,
+  and one day of latency figures. Use the stats tool for a 24-hour, 7-day or
+  30-day view of the traffic.
 
 ## A worked example
 

@@ -1,6 +1,6 @@
 # xhostd SDK
 
-Claude Code plugin for [xhostd](https://xhostd.com) — deploy static sites and dynamic applications. Push code, get HTTPS URLs.
+Claude Code plugin for [xhostd](https://xhostd.com) — deploy applications, sites, and services. Push code, get HTTPS URLs.
 
 ## Install
 

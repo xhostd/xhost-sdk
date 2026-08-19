@@ -219,7 +219,7 @@ Env:
 
 Stats + DB snapshots:
 - `get_app_stats` — Get App Usage Stats: 24h/7d/30d.
-- `get_app_health` — Get App Health: why one channel is slow or unhealthy. Returns resource, runtime, build and database blocks plus a `findings` list, where each finding carries its own `action` (`do`, `actor`, `retry_after_seconds`). Read `findings` first and obey `action`; never infer a retry from the figures.
+- `get_app_health` — Get App Health: why one channel is slow or unhealthy. Returns resource, runtime, build, database and latency blocks plus a `findings` list, where each finding carries its own `action` (`do`, `actor`, `retry_after_seconds`). Read `findings` first and obey `action`; never infer a retry from the figures.
 - `list_channel_snapshots` — List Database Snapshots: both kinds, newest first.
 - `restore_channel_db` — Restore Database Snapshot: roll a channel's database back to a snapshot.
 

@@ -1,13 +1,13 @@
 {
   "name": "xhost",
-  "description": "Deploy static sites and dynamic applications with xhostd. Push code, get HTTPS URLs.",
-  "version": "0.33.0",
+  "description": "Deploy applications, sites, and services with xhostd. Push code, get HTTPS URLs.",
+  "version": "0.34.0",
   "author": {
     "name": "Yair Lifshitz"
   },
   "homepage": "https://xhostd.com",
   "repository": "https://github.com/xhostd/xhost-sdk",
-  "keywords": ["hosting", "deploy", "static-sites", "nodejs", "python"],
+  "keywords": ["hosting", "deploy", "applications", "services", "static-sites", "nodejs", "python"],
   "mcpServers": {
     "xhost": {
       "type": "http",
