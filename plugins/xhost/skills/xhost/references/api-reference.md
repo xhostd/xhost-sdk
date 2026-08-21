@@ -789,7 +789,7 @@ Detach a custom domain. Removes the routing and stops certificate renewals; the 
 
 Give a channel a public `host:port` that carries raw TCP into its container. Idempotent per channel: a channel that already has an endpoint comes back **200** with the same `host`/`port` and its `allow_cidrs` replaced by the submitted list; a fresh allocation is **201**. The address is stable for the life of the exposure, so it is safe to hand out.
 
-Inside the container the process must listen on `0.0.0.0` at the port in `$XHOST_FORWARD_PORT` (a fixed platform-wide port injected into every non-`static` container). xhostd pumps the bytes through unmodified — no TLS is added and nothing is authenticated. Requires the app's **admin** role: a member gets `not_found`, never `permission_denied`, so a member cannot tell "this channel has no endpoint" from "I may not manage it". No redeploy is needed either way — a container created before this feature shipped is the one exception: deploy the channel once and it picks the port up, otherwise the endpoint is silently dead (resolve answers 503).
+Inside the container the process must listen on `0.0.0.0` at the port in `$XHOST_FORWARD_PORT` (a fixed platform-wide port injected into every non-`static` container). xhostd pumps the bytes through unmodified — no TLS is added and nothing is authenticated. Requires the app's **admin** role: a member gets `not_found`, never `permission_denied`, so a member cannot tell "this channel has no endpoint" from "I may not manage it". No redeploy is needed either way.
 
 **Required scope:** `channel:*`
 

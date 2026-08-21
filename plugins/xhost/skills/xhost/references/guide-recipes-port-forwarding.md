@@ -356,9 +356,7 @@ a port for each exposure, so use the values from your own call.
 Read these three properties of the address before you give it to your users:
 
 - **It needs no redeploy.** The container already publishes its forward port,
-  so `expose_port` only writes a row. The next connection carries traffic. A
-  container that does not publish the forward port is the one exception. Deploy
-  the channel once, and the new container publishes the port.
+  so `expose_port` only writes a row. The next connection carries traffic.
 - **It does not change.** A redeploy keeps the same address. A second
   `expose_port` call on a channel that has an endpoint returns the *same* host,
   port and `created_at`. Only `allow_cidrs` takes the value of the new call,
