@@ -1,0 +1,43 @@
+{
+  "name": "xhost",
+  "version": "0.36.0",
+  "description": "Deploy websites, APIs, and services to xhostd from your coding agent. Create apps, push code, deploy previews or production, inspect status, and manage channels, environment, storage, and domains.",
+  "author": {
+    "name": "Yair Lifshitz",
+    "url": "https://github.com/yairl"
+  },
+  "homepage": "https://xhostd.com",
+  "repository": "https://github.com/xhostd/xhost-sdk",
+  "license": "MIT",
+  "keywords": [
+    "hosting",
+    "deploy",
+    "applications",
+    "services",
+    "static-sites",
+    "nodejs",
+    "python",
+    "docker"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "xhostd",
+    "shortDescription": "Build and deploy apps with xhostd",
+    "longDescription": "Use xhostd from Codex to create apps, push code, deploy previews or production, inspect runtime status and logs, and manage channels, environment variables, storage, domains, and other hosting resources through an OAuth-authenticated MCP server.",
+    "developerName": "xhostd",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "websiteURL": "https://xhostd.com",
+    "privacyPolicyURL": "https://docs.xhostd.com/privacy",
+    "termsOfServiceURL": "https://docs.xhostd.com/terms",
+    "defaultPrompt": [
+      "Deploy this project to xhostd",
+      "Create a preview for this branch on xhostd",
+      "Check my xhostd apps and deployment status"
+    ]
+  }
+}
