@@ -11,7 +11,7 @@ description: >-
 
 # xhostd — Agent-First Hosting
 
-xhostd is hosting designed for agents. You create an app, push its code to the git repo the app owns, and deploy it. Every app gets a production HTTPS URL; named channels give preview URLs. The same `mcp__xhost__*` tools are available on Claude Code and on claude.ai (via the connector), so the procedure below is identical in both contexts — except that a runtime with no shell has no git, and there the `commit_files` fallback stands in for the push.
+xhostd is hosting designed for agents. You create an app, push its code to the git repo the app owns, and deploy it. Every app gets a production HTTPS URL; named channels give preview URLs. The same remote MCP tools are available on Claude Code, claude.ai, Codex, and other OAuth-capable clients. The procedure below is identical across clients — except that a runtime with no shell has no git, and there the `commit_files` fallback stands in for the push. Tool names are client-specific: examples below use `mcp__xhost__<name>` as a Claude-style spelling; use the actual names exposed by your runtime.
 
 ## Authentication
 
@@ -19,11 +19,18 @@ Tools are already authenticated via OAuth — the plugin (Claude Code) and the c
 
 If a tool reports unauthenticated:
 - **Claude Code:** tell the user to run `/mcp`, select **xhost**, choose **Authenticate**. A browser opens, they sign in with Google (picking a username on first sign-in), approve, done.
+- **Codex:** refresh or reconnect the xhost plugin/MCP connection, then retry the first tool call. The browser-based Google OAuth flow should open automatically; no token is needed.
 - **claude.ai:** tell the user to reconnect the xhost connector in Settings → Connectors.
 
 There is no API token to mint, copy, paste, or export. Do not ask the user for one.
 
 If a tool listed in this skill or in llms-full.txt is missing from your runtime tool list, the client cached an older tool set at connect time. llms-full.txt is the source of truth — tell the user to reconnect (Claude Code: `/mcp` → xhost → reconnect; claude.ai: Settings → Connectors → reconnect xhost) to pick up the current tools.
+
+Claude Code may expose this workflow as `/xhost`; Codex and other clients may not support slash commands. In those clients, describe the task normally or mention the xhost skill.
+
+## Write safety
+
+Creating or deleting apps, pushing code, deploying, rewinding, changing environment variables, restoring databases, changing domains, and exposing ports are write operations. Perform them when the user explicitly requests the operation and target; when the target or production impact is ambiguous, ask before acting. Prefer a preview channel when the user asks to preview or test a change, and never expose a port or restore production data without explicit user direction.
 
 ## The golden path
 

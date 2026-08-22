@@ -1,6 +1,6 @@
 # xhostd SDK
 
-Claude Code plugin for [xhostd](https://xhostd.com) — deploy applications, sites, and services. Push code, get HTTPS URLs.
+Claude Code and Codex plugin for [xhostd](https://xhostd.com) — deploy applications, sites, and services. Push code, get HTTPS URLs.
 
 ## Install
 
@@ -10,6 +10,10 @@ Claude Code plugin for [xhostd](https://xhostd.com) — deploy applications, sit
 ```
 
 Installing the plugin registers both the xhost skill and the remote MCP server (`https://mcp.xhostd.com/mcp/`).
+
+## Codex
+
+This repository also includes the Codex plugin manifest at `plugins/xhost/.codex-plugin/plugin.json`, its OAuth MCP declaration at `plugins/xhost/.mcp.json`, and a repo-local marketplace at `.agents/plugins/marketplace.json`. The MCP server uses browser-based Google OAuth; do not paste an API token into the plugin configuration.
 
 After installing, reload plugins in your current session:
 
@@ -38,6 +42,14 @@ Or invoke it explicitly:
 ```
 
 The single `/xhost` skill handles account setup, app creation, deploys, previews, and status checks. Claude figures out what you need from context.
+
+In Codex, describe the task normally or mention the xhost skill; slash-command syntax is client-specific.
+
+## Example use cases
+
+- Deploy the current website or API to xhostd and return its live HTTPS URL.
+- Create a preview channel for the current branch and report its URL and deploy status.
+- Inspect apps, channels, runtime logs, environment metadata, domains, or deployment history.
 
 ## What xhostd supports
 
