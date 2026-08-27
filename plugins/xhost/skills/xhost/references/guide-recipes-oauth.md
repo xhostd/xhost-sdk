@@ -351,7 +351,7 @@ one or both. Also record the hostname in the response. That hostname is the
 get_credentials()
 → {"token": "xh_...", "username": "docs",
    "expires_at": "2026-08-30T17:26:27Z",
-   "scopes": ["blob:*", "deploy:*", "repo:*", "db:*", "channel:*"]}
+   "scopes": ["blob:*", "deploy:*", "repo:*", "db:*", "channel:*", "stats:read"]}
 ```
 
 **This recipe shows the HTTPS steps.** Where a shell is available, SSH is the

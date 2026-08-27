@@ -995,7 +995,7 @@ Mint a short-lived `exports:read` token for a ready, owned export. The download 
 
 ## POST /credentials
 
-Mint a 30-day unified credential for the authenticated user. The returned token serves as your git password, Postgres password, and platform API bearer, and carries the full default scope set (`repo:*`, `deploy:*`, `channel:*`, `db:*`, `blob:*`).
+Mint a 30-day unified credential for the authenticated user. The returned token serves as your git password, Postgres password, and platform API bearer, and carries the full default scope set (`repo:*`, `deploy:*`, `channel:*`, `db:*`, `blob:*`, `stats:read`).
 
 **Request body (optional):**
 ```json
@@ -1011,7 +1011,7 @@ Mint a 30-day unified credential for the authenticated user. The returned token 
   "token": "xh_...",
   "username": "alice",
   "expires_at": "2025-01-16T10:30:00Z",
-  "scopes": ["repo:*", "deploy:*", "channel:*", "db:*", "blob:*"]
+  "scopes": ["repo:*", "deploy:*", "channel:*", "db:*", "blob:*", "stats:read"]
 }
 ```
 
@@ -1170,6 +1170,8 @@ Return dashboard stats for the authenticated user. No admin privileges required.
 
 The counts and the `sites` rows cover every project the caller can see: the projects the caller owns, plus every project shared with the caller. A `repo` value reads `owner/project`, so a shared row names its owner. The `resources` block is the caller's OWN memory and CPU alone, because a shared project runs under its owner's resource slice.
 
+**Required scope:** `stats:read`
+
 **Request body:** None
 
 **Response (200):**
@@ -1315,9 +1317,9 @@ in to the console. The user transfers the project there.
 
 ## Token Scopes
 
-OAuth-issued bearer tokens (used by the MCP server) carry the full default scope set: `repo:*`, `deploy:*`, `channel:*`, `db:*`, `blob:*`.
+OAuth-issued bearer tokens (used by the MCP server) carry the full default scope set: `repo:*`, `deploy:*`, `channel:*`, `db:*`, `blob:*`, `stats:read`.
 
-Unified credentials minted via `POST /credentials` carry the full default scope set (`repo:*`, `deploy:*`, `channel:*`, `db:*`, `blob:*`) unless a narrower `scopes` subset is requested.
+Unified credentials minted via `POST /credentials` carry the full default scope set (`repo:*`, `deploy:*`, `channel:*`, `db:*`, `blob:*`, `stats:read`) unless a narrower `scopes` subset is requested.
 
 | Scope | Grants |
 |-------|--------|
@@ -1326,3 +1328,4 @@ Unified credentials minted via `POST /credentials` carry the full default scope 
 | `deploy:*` | Deploy (POST /apps/{id}/channels/{id}/deploy), manage env vars |
 | `db:*` | Connect to Postgres through the database gateway (external DB access) |
 | `blob:*` | Mint object-storage credentials for a channel |
+| `stats:read` | Read public account, resource, app, channel, health, and admin statistics |

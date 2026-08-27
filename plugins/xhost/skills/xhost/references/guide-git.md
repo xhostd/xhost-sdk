@@ -39,9 +39,10 @@ that machine.
 
 You mint one **unified credential**. A single `xh_` token is your git
 password over HTTPS, your Postgres password, and your platform API
-bearer. It carries the full default scopes: repo, deploy, channel, db
-and blob. Thus the same token can push code, deploy code, and manage
-your apps. An SSH push needs no token; read **Push over SSH** below.
+bearer. It carries the full default scopes: repo, deploy, channel, db,
+blob, and stats read. Thus the same token can push code, deploy code,
+and manage your apps. An SSH push needs no token; read **Push over SSH**
+below.
 
 - **From your AI tool:** call the `get_credentials` MCP tool. It
   returns `{token, username, expires_at, scopes}`.
