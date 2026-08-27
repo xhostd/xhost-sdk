@@ -150,7 +150,7 @@ CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app:app --host 0.0.0.0 --
 ```
 
 - **Charged image size is capped per plan**: basic 512 MiB / builder 2 GiB / indie 4 GiB / pro 12 GiB (the same caps apply to the `app` template). "Charged" = total image size minus warm-base layers; an over-cap build fails the deploy with the size, cap, and plan named in the log.
-- **Prefer a warm base image** — `node:22-slim`, `node:24-slim`, `python:3.11-slim`, `python:3.12-slim`, `python:3.13-slim`, `debian:trixie-slim` — instant builds, base size exempt from your image cap.
+- **Match every `FROM` to a warm base image** — `node:22-slim`, `node:24-slim`, `node:26-slim`, `python:3.11-slim`, `python:3.12-slim`, `python:3.13-slim`, `python:3.14-slim`, `debian:trixie-slim` — including a build-only stage in a multi-stage build, since every stage that names one starts with no pull. The final stage's warm-base layers are also exempt from your charged image size.
 
 When a deploy ends in `status: failed`, read `get_deploy_log`: `health check failed for container … no 2xx/3xx response at GET / … and no readiness file created at $XHOST_READY_FILE` means **neither** signal arrived in time — `/` didn't answer 200 on `$XHOST_HTTP_PORT` (wrong bind/port, no `/` route, slow boot) and no `$XHOST_READY_FILE` was created, or the app crashed before either could happen (a boot-time `Permission denied` — `launch.sh` runs as the non-root `app` user, so installing or writing outside `/app`, `$HOME`, `/tmp` crashes it).
 

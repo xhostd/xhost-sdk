@@ -77,21 +77,49 @@ CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app:app --host 0.0.0.0 --
 
 Four parts of that file do real work.
 
-**The base is a warm base.** Every cell already holds these six images, and
-the platform does not charge for their layers:
+**The base is a warm base.** Every cell already holds these eight images:
 
 | Warm base |
 |---|
 | `node:22-slim` |
 | `node:24-slim` |
+| `node:26-slim` |
 | `python:3.11-slim` |
 | `python:3.12-slim` |
 | `python:3.13-slim` |
+| `python:3.14-slim` |
 | `debian:trixie-slim` |
 
-If you build `FROM` one of them, the build starts with no pull. Only the
-layers that *you* add count against your plan's cap. The platform charges any
-other base in full.
+Match **every** `FROM` in your Dockerfile to this list, including a
+build-only stage in a multi-stage build. A stage that names a warm base starts
+with no pull, so the build begins at once. Any other base pulls over the
+network first, whether or not its layers reach the final image.
+
+The final stage's warm-base layers are also exempt from your plan's charged
+size, so only the layers that *you* add count against the cap. That exemption
+applies to the final stage alone. The pull applies to every stage, so match
+every `FROM`, not only the one that ships.
+
+A multi-stage build needs a warm base in every stage. It keeps build tools out
+of the shipped image, and the builder stage still pulls its own base first:
+
+```dockerfile
+FROM node:22-slim AS build
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+FROM node:22-slim
+WORKDIR /app
+COPY --from=build /app/dist ./dist
+CMD ["node", "dist/server.js"]
+```
+
+A cold builder base never shows up in the charged size, so the size report
+gives no hint that it is there. That base still costs a pull on every build
+that misses the cache.
 
 **`COPY requirements.txt .` comes before `COPY . .`.** Docker then repeats
 the dependency step only when `requirements.txt` changes. If you copy your
@@ -434,9 +462,10 @@ The deploy fails at the build step. The message names the charged size, the
 cap and your plan, and the platform removes the image. Read the
 `total`/`charged` line first. If `charged` is near `total`, your base is not
 a warm base, and the platform charges you for all of it. Change `FROM` to one
-of the six warm bases above, which usually corrects the whole problem. If
+of the eight warm bases above, which usually corrects the whole problem. If
 `charged` is truly large, your runtime image holds build tools. Use a
-multi-stage build that copies only the artifact.
+multi-stage build that copies only the artifact, and give the builder stage a
+warm `FROM` as well.
 
 ### `CMD` does not `exec` the final process
 

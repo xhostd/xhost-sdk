@@ -161,17 +161,19 @@ non-root `app` user. Keep `launch.sh` to one `exec` line and nothing more.
 
 ### On the docker template
 
-Select one of the warm base images. Your plan has an image cap. The platform
-does not count a layer that your image shares with a platform base image. It
-keeps these six images warm on every host:
+Match every `FROM` in your Dockerfile to a warm base image, including a
+build-only stage in a multi-stage build. A stage that names a warm base starts
+with no pull. The platform keeps these eight images warm on every host:
 
 | Warm base |
 |---|
 | `node:22-slim` |
 | `node:24-slim` |
+| `node:26-slim` |
 | `python:3.11-slim` |
 | `python:3.12-slim` |
 | `python:3.13-slim` |
+| `python:3.14-slim` |
 | `debian:trixie-slim` |
 
 Copy your dependency manifest and install the dependencies before you copy the
