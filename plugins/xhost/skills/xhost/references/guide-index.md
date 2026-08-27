@@ -49,7 +49,7 @@ and no server to rent.
 
 Every tool call, every deploy log and every `curl` in a recipe is verbatim
 output. It comes from a real run on a real account: the `docs` demo account,
-whose apps stay up. Thus a hostname such as `recipe-static-docs.xhostd.com` is
+whose apps stay up. Thus a hostname such as `recipe-static-docs.xhostd.app` is
 a live address that you can visit. It is not a form for you to complete. If you
 follow the recipe yourself, you get the same app under your own account name.
 
@@ -71,7 +71,7 @@ Every recipe ends with a live address, and the one command that proves the
 address works. For an HTTP recipe, that command is:
 
 ```bash
-curl -sS https://<app>-<account>.xhostd.com/
+curl -sS https://<app>-<account>.xhostd.app/
 ```
 
 If the command prints your app's response, the recipe worked. If it does not,

@@ -489,8 +489,11 @@ the bad deploy changed the schema, a rewind leaves the old code with a new
 schema. Restore the database as well, or deploy a correction. `rewind` is not
 available on the `static` template, because that template keeps no image.
 
-**Only the console can restore the blob storage.** There is no MCP tool for it.
-If you must recover the objects from an earlier point in time, use the web
+**Restore the blob storage with `restore_channel_blobs`.** The tool rolls a
+channel's object storage back to a checkpoint and takes the same prod guard as
+the database restore. Pass the checkpoint id from `list_channel_snapshots`
+whose `aligned_blob` flag is true; a checkpoint with no aligned blob leg
+answers `no_aligned_blob_snapshot` (409). You can also restore from the web
 console.
 
 The [recipes index](https://docs.xhostd.com/guides) lists the recipes for all

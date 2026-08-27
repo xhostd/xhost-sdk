@@ -30,7 +30,7 @@ The response looks like:
     {
       "id": "c0a1…",
       "name": "prod",
-      "hostname": "lisbon-coffee-alice.xhostd.com",
+      "hostname": "lisbon-coffee-alice.xhostd.app",
       "git_ref_binding": "branch:master",
       "current_sha": null,
       "status": "provisioning"
@@ -117,7 +117,7 @@ Returns plain text. Poll until the log shows the build finished. `static` deploy
 
 Read `hostname` from the prod channel (it was in step 2's response, and `mcp__xhost__list_channels` or `mcp__xhost__get_app` will return it later). Tell the user:
 
-> Live at https://lisbon-coffee-alice.xhostd.com
+> Live at https://lisbon-coffee-alice.xhostd.app
 
 ## 7. Iterate
 
@@ -131,7 +131,7 @@ git push xhost HEAD:draft
 mcp__xhost__deploy(app_id="f1e2…", channel_id="<draft channel id>", ref="draft")
 ```
 
-The preview is live at `https://draft-lisbon-coffee-alice.xhostd.com`.
+The preview is live at `https://draft-lisbon-coffee-alice.xhostd.app`.
 
 ## 8. Optional extras
 

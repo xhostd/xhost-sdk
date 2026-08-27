@@ -9,7 +9,7 @@ and `launch.sh` starts the server. The platform supplies the base image, the
 Dockerfile, the port and the TLS.
 
 The example app is live at
-[recipe-python-docs.xhostd.com](https://recipe-python-docs.xhostd.com/). The
+[recipe-python-docs.xhostd.app](https://recipe-python-docs.xhostd.app/). The
 transcript in this guide deployed the four files below. The app has two
 read-only routes, and it writes to no store. If you obey this recipe on your
 own account, you get the same API under your own name.
@@ -108,7 +108,7 @@ create_app(name="recipe-python", template="app")
    "repo_url": "https://git.xhostd.com/docs/recipe-python.git",
    "channels": [{"id": "44788022-ee4d-458d-802f-277cfda9116c",
                  "name": "prod",
-                 "hostname": "recipe-python-docs.xhostd.com",
+                 "hostname": "recipe-python-docs.xhostd.app",
                  "current_sha": null}], ...}
 ```
 
@@ -211,7 +211,7 @@ the buildkit lines and the ten dependency lines, because they teach nothing:
 [2026-07-31T17:33:58+00:00] [container] INFO:     Uvicorn running on http://0.0.0.0:3000 (Press CTRL+C to quit)
 [2026-07-31T17:33:58+00:00] health_check ok
 [2026-07-31T17:33:58+00:00] [container] INFO:     10.77.1.5:35710 - "GET / HTTP/1.1" 200 OK
-[2026-07-31T17:33:58+00:00] caddy ensure_route hostname=recipe-python-docs.xhostd.com upstream=10.77.1.5:32042
+[2026-07-31T17:33:58+00:00] caddy ensure_route hostname=recipe-python-docs.xhostd.app upstream=10.77.1.5:32042
 [2026-07-31T17:33:59+00:00] deploy success
 ```
 
@@ -244,10 +244,10 @@ the port that the probe uses. `health_check ok` comes next. Only then does
 Then two commands prove the result against the live app:
 
 ```bash
-$ curl -sS https://recipe-python-docs.xhostd.com/
+$ curl -sS https://recipe-python-docs.xhostd.app/
 {"ok":true,"service":"recipe-python-fastapi"}
 
-$ curl -sS "https://recipe-python-docs.xhostd.com/api/echo?q=hello"
+$ curl -sS "https://recipe-python-docs.xhostd.app/api/echo?q=hello"
 {"echo":"hello"}
 ```
 

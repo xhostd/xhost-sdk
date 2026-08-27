@@ -21,7 +21,7 @@ holds the bytes that your plan's quota counts. If you do not set
 a locked app, never a public one.
 
 The example app is live at
-[recipe-blob-docs.xhostd.com](https://recipe-blob-docs.xhostd.com/). The
+[recipe-blob-docs.xhostd.app](https://recipe-blob-docs.xhostd.app/). The
 public can only read it. The `GET` calls in this guide reach the app. The app
 refuses the `POST` and `DELETE` calls, because this guide does not publish its
 write token. If you do the recipe on your own account, you get the same
@@ -339,7 +339,7 @@ create_app(name="recipe-blob", template="app")
    "repo_url": "https://git.xhostd.com/docs/recipe-blob.git",
    "channels": [{"id": "21eb795a-7071-407b-8cf0-0e4f940af3c8",
                  "name": "prod",
-                 "hostname": "recipe-blob-docs.xhostd.com",
+                 "hostname": "recipe-blob-docs.xhostd.app",
                  "current_sha": null}], ...}
 ```
 
@@ -452,7 +452,7 @@ that teach nothing. Every deploy of the channel writes the same set of lines.
 [2026-07-31T22:00:36+00:00] [container] INFO:     Uvicorn running on http://0.0.0.0:3000 (Press CTRL+C to quit)
 [2026-07-31T22:00:37+00:00] health_check ok
 [2026-07-31T22:00:37+00:00] [container] INFO:     10.77.1.5:56020 - "GET / HTTP/1.1" 200 OK
-[2026-07-31T22:00:37+00:00] caddy ensure_route hostname=recipe-blob-docs.xhostd.com upstream=10.77.1.5:32044
+[2026-07-31T22:00:37+00:00] caddy ensure_route hostname=recipe-blob-docs.xhostd.app upstream=10.77.1.5:32044
 [2026-07-31T22:00:38+00:00] deploy success
 ```
 
@@ -483,46 +483,46 @@ writes that carry the token. `$WRITE_TOKEN` holds the value from step 4. The tok
 never appears in a transcript.
 
 ```console
-$ curl -sS https://recipe-blob-docs.xhostd.com/
+$ curl -sS https://recipe-blob-docs.xhostd.app/
 {"ok":true,"service":"recipe-blob-uploads","bucket":"recipe-blob-docs"}
 
 $ printf 'the quick brown fox\n' > notes.txt
 
 $ curl -sS -w ' [%{http_code}]\n' -F 'file=@notes.txt' \
-    https://recipe-blob-docs.xhostd.com/files
+    https://recipe-blob-docs.xhostd.app/files
 {"detail":"Invalid write token."} [401]
 
 $ curl -sS -w ' [%{http_code}]\n' -F 'file=@notes.txt' \
     -H 'Authorization: Bearer not-the-token' \
-    https://recipe-blob-docs.xhostd.com/files
+    https://recipe-blob-docs.xhostd.app/files
 {"detail":"Invalid write token."} [401]
 
 $ curl -sS -F 'file=@notes.txt' \
     -H "Authorization: Bearer $WRITE_TOKEN" \
-    https://recipe-blob-docs.xhostd.com/files
+    https://recipe-blob-docs.xhostd.app/files
 {"key":"notes.txt","bytes":20}
 
-$ curl -sS https://recipe-blob-docs.xhostd.com/files
+$ curl -sS https://recipe-blob-docs.xhostd.app/files
 {"files":[{"key":"notes.txt","bytes":20,"modified":"2026-07-31T22:05:40.166000+00:00"}]}
 
-$ curl -sS https://recipe-blob-docs.xhostd.com/files/notes.txt
+$ curl -sS https://recipe-blob-docs.xhostd.app/files/notes.txt
 the quick brown fox
 
 $ curl -sS -w ' [%{http_code}]\n' -X DELETE \
-    https://recipe-blob-docs.xhostd.com/files/notes.txt
+    https://recipe-blob-docs.xhostd.app/files/notes.txt
 {"detail":"Invalid write token."} [401]
 
 $ curl -sS -X DELETE -H "Authorization: Bearer $WRITE_TOKEN" \
-    https://recipe-blob-docs.xhostd.com/files/notes.txt
+    https://recipe-blob-docs.xhostd.app/files/notes.txt
 {"deleted":"notes.txt"}
 
-$ curl -sS https://recipe-blob-docs.xhostd.com/files
+$ curl -sS https://recipe-blob-docs.xhostd.app/files
 {"files":[]}
 
-$ curl -sS -w ' [%{http_code}]\n' https://recipe-blob-docs.xhostd.com/files/nope.txt
+$ curl -sS -w ' [%{http_code}]\n' https://recipe-blob-docs.xhostd.app/files/nope.txt
 {"detail":"No such file."} [404]
 
-$ curl -sS -w ' [%{http_code}]\n' --path-as-is 'https://recipe-blob-docs.xhostd.com/files/../etc/passwd'
+$ curl -sS -w ' [%{http_code}]\n' --path-as-is 'https://recipe-blob-docs.xhostd.app/files/../etc/passwd'
 {"detail":"Invalid object name."} [400]
 ```
 

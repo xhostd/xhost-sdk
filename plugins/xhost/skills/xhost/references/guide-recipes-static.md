@@ -8,7 +8,7 @@ them read-only. That is the whole app: no build step, no start command and no
 process of your own to keep in service.
 
 The example is live at
-[recipe-static-docs.xhostd.com](https://recipe-static-docs.xhostd.com/). It is
+[recipe-static-docs.xhostd.app](https://recipe-static-docs.xhostd.app/). It is
 the one file below, and the transcript in this guide deployed it. The page is
 read-only, and there is nothing behind it to write to. If you do the recipe on
 your own account, you get the same page under your own name.
@@ -92,7 +92,7 @@ create_app(name="recipe-static", template="static")
    "repo_url": "https://git.xhostd.com/docs/recipe-static.git",
    "channels": [{"id": "4e8973a5-2a78-4326-bd7b-f95506d84b9f",
                  "name": "prod",
-                 "hostname": "recipe-static-docs.xhostd.com",
+                 "hostname": "recipe-static-docs.xhostd.app",
                  "current_sha": null}], ...}
 ```
 
@@ -186,7 +186,7 @@ nginx entrypoint lines:
 [2026-07-31T17:30:19+00:00] [container] 2026/07/31 17:30:19 [notice] 1#1: nginx/1.31.3
 [2026-07-31T17:30:19+00:00] [container] 2026/07/31 17:30:19 [notice] 1#1: start worker processes
 [2026-07-31T17:30:19+00:00] [container] 10.77.1.5 - - [31/Jul/2026:17:30:19 +0000] "GET / HTTP/1.1" 200 1297 "-" "Python-urllib/3.13" "-"
-[2026-07-31T17:30:19+00:00] caddy ensure_route hostname=recipe-static-docs.xhostd.com upstream=10.77.1.5:32005
+[2026-07-31T17:30:19+00:00] caddy ensure_route hostname=recipe-static-docs.xhostd.app upstream=10.77.1.5:32005
 [2026-07-31T17:30:19+00:00] caddy ensure_route ok
 [2026-07-31T17:30:19+00:00] pinned deployed sha 206b94135aaa92b47421e30a1b86efc6d6ed824f
 [2026-07-31T17:30:19+00:00] deploy success
@@ -223,10 +223,10 @@ health check. A failed deploy leaves your site in service.
 The next commands prove it against the live demo:
 
 ```bash
-$ curl -sS -o /dev/null -w '%{http_code}\n' https://recipe-static-docs.xhostd.com/
+$ curl -sS -o /dev/null -w '%{http_code}\n' https://recipe-static-docs.xhostd.app/
 200
 
-$ curl -sS -o /dev/null -w '%{http_code}\n' https://recipe-static-docs.xhostd.com/nope
+$ curl -sS -o /dev/null -w '%{http_code}\n' https://recipe-static-docs.xhostd.app/nope
 404
 ```
 
@@ -247,7 +247,7 @@ an `index.html` at the **repo root**. Do not put it in a `public/`, `dist/` or
 
 ### A client-side route 404s
 
-`https://recipe-static-docs.xhostd.com/nope` gives the nginx 404 above. A path
+`https://recipe-static-docs.xhostd.app/nope` gives the nginx 404 above. A path
 such as `/dashboard` gives the same 404 in a single-page app, although the
 app's router expects to handle it. This template has no rewrite rule, and no
 `try_files` fallback to `index.html`. nginx serves a path only if a committed

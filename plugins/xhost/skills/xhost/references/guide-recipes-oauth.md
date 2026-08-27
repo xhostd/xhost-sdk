@@ -10,7 +10,7 @@ id, you store no secret, you configure no redirect URI and you set no toggle.
 Your part is one function that verifies a JWT.
 
 The example app is live at
-[recipe-oauth-docs.xhostd.com](https://recipe-oauth-docs.xhostd.com/). The
+[recipe-oauth-docs.xhostd.app](https://recipe-oauth-docs.xhostd.app/). The
 transcript in this guide deployed the four files below. The app has a public
 home page, and a `/private` route that answers 401 until you sign in. If you
 obey this recipe on your own account, you get the same app under your own name.
@@ -336,7 +336,7 @@ create_app(name="recipe-oauth", template="app")
    "repo_url": "https://git.xhostd.com/docs/recipe-oauth.git",
    "channels": [{"id": "2997a56a-b7a4-4f9a-992c-2a83ff40578e",
                  "name": "prod",
-                 "hostname": "recipe-oauth-docs.xhostd.com",
+                 "hostname": "recipe-oauth-docs.xhostd.app",
                  "current_sha": null}], ...}
 ```
 
@@ -421,7 +421,7 @@ nothing.
 [2026-07-31T18:26:04+00:00] health_check ok
 [2026-07-31T18:26:04+00:00] [container] INFO:     Uvicorn running on http://0.0.0.0:3000 (Press CTRL+C to quit)
 [2026-07-31T18:26:04+00:00] [container] INFO:     10.77.1.5:54854 - "GET / HTTP/1.1" 200 OK
-[2026-07-31T18:26:05+00:00] caddy ensure_route hostname=recipe-oauth-docs.xhostd.com upstream=10.77.1.5:32046
+[2026-07-31T18:26:05+00:00] caddy ensure_route hostname=recipe-oauth-docs.xhostd.app upstream=10.77.1.5:32046
 [2026-07-31T18:26:05+00:00] deploy success
 ```
 
@@ -446,10 +446,10 @@ The two calls below are anonymous. They send no cookie, and nothing in the
 request identifies the caller. Both outputs come from the live channel.
 
 ```console
-$ curl -sS -o /dev/null -w '%{http_code}\n' https://recipe-oauth-docs.xhostd.com/
+$ curl -sS -o /dev/null -w '%{http_code}\n' https://recipe-oauth-docs.xhostd.app/
 200
 
-$ curl -sS -w ' [%{http_code}]\n' https://recipe-oauth-docs.xhostd.com/private
+$ curl -sS -w ' [%{http_code}]\n' https://recipe-oauth-docs.xhostd.app/private
 {"error":"Sign in to see this page.","login_url":"/xhost-auth/login?return_to=/private"} [401]
 ```
 

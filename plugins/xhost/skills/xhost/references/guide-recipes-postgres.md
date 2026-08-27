@@ -33,7 +33,7 @@ Before each of those deploys, the platform saves a snapshot of the database.
 The snapshot gives you a one-call undo if the deploy is wrong.
 
 The worked example is live at
-[recipe-docker-pg-docs.xhostd.com](https://recipe-docker-pg-docs.xhostd.com/).
+[recipe-docker-pg-docs.xhostd.app](https://recipe-docker-pg-docs.xhostd.app/).
 Read it, but do not write to it. It is a real database behind a real write
 API. The one note that it lists is the note that this guide restored it to.
 If you obey the recipe on your own account, you get the same app under your
@@ -378,7 +378,7 @@ becomes healthy the moment the server answers `GET /`.
 The schema now exists, so the API works. Write a row through it:
 
 ```bash
-$ curl -sS -X POST https://recipe-docker-pg-docs.xhostd.com/notes \
+$ curl -sS -X POST https://recipe-docker-pg-docs.xhostd.app/notes \
     -H 'content-type: application/json' \
     -d '{"body":"first note from the recipe"}'
 {"id":1}
@@ -426,7 +426,7 @@ from the point before the first deploy's migrations. The newer snapshot is
 Add a second note, *after* the platform takes that newer snapshot:
 
 ```bash
-$ curl -sS -X POST https://recipe-docker-pg-docs.xhostd.com/notes \
+$ curl -sS -X POST https://recipe-docker-pg-docs.xhostd.app/notes \
     -H 'content-type: application/json' \
     -d '{"body":"second note, added after the snapshot"}'
 {"id":2}
@@ -463,10 +463,10 @@ to work with no new deploy. Only the data changes: it is back at the state of
 the snapshot.
 
 ```bash
-$ curl -sS https://recipe-docker-pg-docs.xhostd.com/
+$ curl -sS https://recipe-docker-pg-docs.xhostd.app/
 {"ok":true,"notes":1,"done":0}
 
-$ curl -sS https://recipe-docker-pg-docs.xhostd.com/notes
+$ curl -sS https://recipe-docker-pg-docs.xhostd.app/notes
 {"notes":[{"id":1,"body":"first note from the recipe","done":false,"created_at":"2026-07-31T18:39:10.159203+00:00"}]}
 ```
 

@@ -239,7 +239,7 @@ create_app(name="recipe-tcp", template="app")
    "port_forwarding_available": true,
    "channels": [{"id": "a9832287-7684-4f78-94dc-9795761c60d8",
                  "name": "prod",
-                 "hostname": "recipe-tcp-docs.xhostd.com",
+                 "hostname": "recipe-tcp-docs.xhostd.app",
                  "current_sha": null,
                  "status": "provisioning"}],
    ...}
@@ -337,7 +337,7 @@ that carries no traffic.
 expose_port(app_name="recipe-tcp", channel="prod")
 → {"channel_id": "a9832287-7684-4f78-94dc-9795761c60d8",
    "channel": "prod",
-   "host": "fwd-1.xhostd.com",
+   "host": "fwd-1.xhostd.app",
    "port": 20582,
    "allow_cidrs": [],
    "active": true,
@@ -411,7 +411,7 @@ base xhost-runtime:node22-py313 exempt`. The build installed nothing on the warm
 base image. A service that uses only the standard library therefore has an
 almost zero build cost.
 
-The channel also gets its HTTPS hostname, `recipe-tcp-docs.xhostd.com`. That
+The channel also gets its HTTPS hostname, `recipe-tcp-docs.xhostd.app`. That
 hostname returns **502**, and this is correct, because no process listens on the
 health port. See [When it goes wrong](#when-it-goes-wrong).
 
@@ -430,7 +430,7 @@ does not start.
 list_exposed_ports(app_name="recipe-tcp")
 → {"forwards": [{"channel_id": "a9832287-7684-4f78-94dc-9795761c60d8",
                  "channel": "prod",
-                 "host": "fwd-1.xhostd.com",
+                 "host": "fwd-1.xhostd.app",
                  "port": 20582,
                  "allow_cidrs": [],
                  "active": true,
@@ -516,7 +516,7 @@ also the client of the round trip above:
 ```text
 expose_port(app_name="recipe-tcp", channel="prod",
             allow_cidrs=["203.0.113.0/24"])
-→ {"host": "fwd-1.xhostd.com",
+→ {"host": "fwd-1.xhostd.app",
    "port": 20582,
    "allow_cidrs": ["203.0.113.0/24"],
    "active": true,
@@ -684,11 +684,11 @@ The two symptoms have different causes:
 This is correct, and it is not a fault:
 
 ```bash
-$ curl -sS -o /dev/null -w '%{http_code}\n' https://recipe-tcp-docs.xhostd.com/
+$ curl -sS -o /dev/null -w '%{http_code}\n' https://recipe-tcp-docs.xhostd.app/
 502
 ```
 
-The channel gets `recipe-tcp-docs.xhostd.com`, and Caddy routes that hostname.
+The channel gets `recipe-tcp-docs.xhostd.app`, and Caddy routes that hostname.
 No process listens on the health port, so the proxy has no upstream. A 404 from
 the hostname is different: it tells you that the channel has no route, because
 the deploy did not reach `caddy ensure_route`.

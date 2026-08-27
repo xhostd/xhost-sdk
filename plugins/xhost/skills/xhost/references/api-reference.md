@@ -38,7 +38,7 @@ List all apps owned by the authenticated user.
         {
           "id": "uuid",
           "name": "prod",
-          "hostname": "my-app-alice.xhostd.com",
+          "hostname": "my-app-alice.xhostd.app",
           "git_ref_binding": "branch:master",
           "current_sha": "abc1234567890abcdef1234567890abcdef12345",
           "status": "running"
@@ -88,7 +88,7 @@ Create a new app. Provisions a git repository and a `prod` channel automatically
     {
       "id": "uuid",
       "name": "prod",
-      "hostname": "my-app-alice.xhostd.com",
+      "hostname": "my-app-alice.xhostd.app",
       "git_ref_binding": "branch:master",
       "current_sha": null,
       "status": "provisioning"
@@ -137,7 +137,7 @@ List all channels for an app.
   {
     "id": "uuid",
     "name": "prod",
-    "hostname": "my-app-alice.xhostd.com",
+    "hostname": "my-app-alice.xhostd.app",
     "git_ref_binding": "branch:master",
     "current_sha": "abc1234...",
     "status": "running"
@@ -145,7 +145,7 @@ List all channels for an app.
   {
     "id": "uuid",
     "name": "wildcard",
-    "hostname": "wildcard-my-app-alice.xhostd.com",
+    "hostname": "wildcard-my-app-alice.xhostd.app",
     "git_ref_binding": "branch:*",
     "current_sha": null,
     "status": "provisioning"
@@ -180,7 +180,7 @@ Create a new channel on an app.
 {
   "id": "uuid",
   "name": "wildcard",
-  "hostname": "wildcard-my-app-alice.xhostd.com",
+  "hostname": "wildcard-my-app-alice.xhostd.app",
   "git_ref_binding": "branch:*",
   "current_sha": null,
   "status": "provisioning"
@@ -663,7 +663,7 @@ Return the S3-compatible credentials for the channel's object store — the only
 {
   "access_key_id": "...",
   "secret_access_key": "...",
-  "endpoint": "https://my-site-alice.s3.xhostd.com",
+  "endpoint": "https://my-site-alice.s3.xhostd.app",
   "region": "us-east-1",
   "bucket": "my-app-alice-xhostd-com"
 }
@@ -690,7 +690,7 @@ Return the channel's object-store status and usage.
   "usage_bytes": 1048576,
   "external_enabled": false,
   "virtual_bucket": "my-app-alice-xhostd-com",
-  "virtual_endpoint": "https://my-site-alice.s3.xhostd.com",
+  "virtual_endpoint": "https://my-site-alice.s3.xhostd.app",
   "region": "us-east-1"
 }
 ```
@@ -723,7 +723,7 @@ Attach a custom domain to a channel (max 5 per channel; domains are globally uni
   "dns_records": {
     "txt_host": "_xhost.myapp.com",
     "txt_value": "xhost-verify-...",
-    "cname_target": "my-app-alice.xhostd.com",
+    "cname_target": "my-app-alice.xhostd.app",
     "a_values": ["198.51.100.7"]
   },
   "created_at": "2025-01-16T10:30:00Z",
@@ -807,7 +807,7 @@ Inside the container the process must listen on `0.0.0.0` at the port in `$XHOST
 {
   "channel_id": "uuid",
   "channel": "prod",
-  "host": "fwd-1.xhostd.com",
+  "host": "fwd-1.xhostd.app",
   "port": 27431,
   "allow_cidrs": ["203.0.113.0/24"],
   "active": true,
@@ -1194,7 +1194,7 @@ The counts and the `sites` rows cover every project the caller can see: the proj
   },
   "sites": [
     {
-      "hostname": "myapp-alice.xhostd.com",
+      "hostname": "myapp-alice.xhostd.app",
       "repo": "alice/myapp",
       "branch": "master",
       "status": "running",
@@ -1227,8 +1227,8 @@ All user-facing names (app names, usernames, channel names) must be valid **DNS 
 `prod`
 
 **Hostname derivation:**
-- Production channel: `<app>-<username>.<domain>` (e.g., `myapp-alice.xhostd.com`)
-- Other channels: `<channel>-<app>-<username>.<domain>` (e.g., `wildcard-myapp-alice.xhostd.com`)
+- Production channel: `<app>-<username>.<domain>` (e.g., `myapp-alice.xhostd.app`)
+- Other channels: `<channel>-<app>-<username>.<domain>` (e.g., `wildcard-myapp-alice.xhostd.app`)
 - Fan-out preview channels: `preview-<branch-slug>-<app>-<username>.<domain>`
 
 ---

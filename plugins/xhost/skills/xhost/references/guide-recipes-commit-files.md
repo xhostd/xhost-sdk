@@ -27,7 +27,7 @@ push is a few lines, and the changeset is the whole project again. That is
 why git is always the first choice, whatever the size of the project.
 
 The worked example is live at
-[recipe-commit-files-docs.xhostd.com](https://recipe-commit-files-docs.xhostd.com/).
+[recipe-commit-files-docs.xhostd.app](https://recipe-commit-files-docs.xhostd.app/).
 It is the two files below, and the transcript in this guide deployed them.
 Git did not run in that transcript, on any machine, at any point.
 
@@ -113,7 +113,7 @@ create_app(name="recipe-commit-files", template="static")
    "repo_url": "https://git.xhostd.com/docs/recipe-commit-files.git",
    "channels": [{"id": "17a905c3-9365-4c1e-be98-7823f83a2647",
                  "name": "prod",
-                 "hostname": "recipe-commit-files-docs.xhostd.com",
+                 "hostname": "recipe-commit-files-docs.xhostd.app",
                  "current_sha": null}], ...}
 ```
 
@@ -251,7 +251,7 @@ route and the channel row:
 [2026-07-31T23:20:43+00:00] [container] 2026/07/31 23:20:43 [notice] 1#1: nginx/1.31.3
 [2026-07-31T23:20:43+00:00] [container] 2026/07/31 23:20:43 [notice] 1#1: start worker processes
 [2026-07-31T23:20:43+00:00] [container] 10.77.1.5 - - [31/Jul/2026:23:20:43 +0000] "GET / HTTP/1.1" 200 815 "-" "Python-urllib/3.13" "-"
-[2026-07-31T23:20:43+00:00] caddy ensure_route hostname=recipe-commit-files-docs.xhostd.com upstream=10.77.1.5:32050
+[2026-07-31T23:20:43+00:00] caddy ensure_route hostname=recipe-commit-files-docs.xhostd.app upstream=10.77.1.5:32050
 [2026-07-31T23:20:43+00:00] caddy ensure_route ok
 [2026-07-31T23:20:43+00:00] pinned deployed sha 0bf2770b0ab04b119bc4138faf2d9b1a270ab095
 [2026-07-31T23:20:44+00:00] deploy success
@@ -290,10 +290,10 @@ version live.
 Then the proof, against the live demo:
 
 ```bash
-$ curl -sS -o /dev/null -w '%{http_code} %{content_type} %{size_download}\n' https://recipe-commit-files-docs.xhostd.com/
+$ curl -sS -o /dev/null -w '%{http_code} %{content_type} %{size_download}\n' https://recipe-commit-files-docs.xhostd.app/
 200 text/html 815
 
-$ curl -sS -o /dev/null -w '%{http_code} %{content_type} %{size_download}\n' https://recipe-commit-files-docs.xhostd.com/style.css
+$ curl -sS -o /dev/null -w '%{http_code} %{content_type} %{size_download}\n' https://recipe-commit-files-docs.xhostd.app/style.css
 200 text/css 563
 ```
 

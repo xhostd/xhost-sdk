@@ -10,7 +10,7 @@ starts your server. The platform supplies the base image, the Dockerfile, the
 port and the TLS.
 
 The example is live at
-[recipe-node-docs.xhostd.com](https://recipe-node-docs.xhostd.com/). It is the
+[recipe-node-docs.xhostd.app](https://recipe-node-docs.xhostd.app/). It is the
 four files below, and the transcript in this guide deployed them. The API has
 two read-only routes, and there is no data store behind them. Do the recipe on
 your own account, and you get the same API under your own name.
@@ -116,7 +116,7 @@ create_app(name="recipe-node", template="app")
    "repo_url": "https://git.xhostd.com/docs/recipe-node.git",
    "channels": [{"id": "937e4d14-965c-4959-9adb-effc1555b5b7",
                  "name": "prod",
-                 "hostname": "recipe-node-docs.xhostd.com",
+                 "hostname": "recipe-node-docs.xhostd.app",
                  "current_sha": null}], ...}
 ```
 
@@ -211,7 +211,7 @@ and npm-notice lines, because they teach nothing:
 [2026-07-31T17:30:53+00:00] [container] [xhost] starting launch.sh (XHOST_HTTP_PORT=3000) ...
 [2026-07-31T17:30:53+00:00] health_check ok
 [2026-07-31T17:30:53+00:00] [container] listening on 0.0.0.0:3000
-[2026-07-31T17:30:54+00:00] caddy ensure_route hostname=recipe-node-docs.xhostd.com upstream=10.77.1.5:32032
+[2026-07-31T17:30:54+00:00] caddy ensure_route hostname=recipe-node-docs.xhostd.app upstream=10.77.1.5:32032
 [2026-07-31T17:30:54+00:00] deploy success
 ```
 
@@ -261,10 +261,10 @@ delete it. To read the output of the container that failed, give its
 Then the proof, in two commands, against the live demo:
 
 ```bash
-$ curl -sS https://recipe-node-docs.xhostd.com/
+$ curl -sS https://recipe-node-docs.xhostd.app/
 {"ok":true,"service":"recipe-node-express","uptime":18729.900174679}
 
-$ curl -sS "https://recipe-node-docs.xhostd.com/api/echo?q=hello"
+$ curl -sS "https://recipe-node-docs.xhostd.app/api/echo?q=hello"
 {"echo":"hello"}
 ```
 

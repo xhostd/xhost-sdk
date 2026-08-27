@@ -13,7 +13,7 @@ available to it. Most recipes teach the first signal. This one teaches the
 second, and it shows how to verify a channel that has no URL.
 
 The app is `recipe-worker`, the template is `app`, and the channel is `prod`.
-The channel keeps its HTTPS hostname, `recipe-worker-docs.xhostd.com`, and that
+The channel keeps its HTTPS hostname, `recipe-worker-docs.xhostd.app`, and that
 hostname returns 502. That is correct, and
 [The HTTPS hostname returns 502](#the-https-hostname-returns-502) explains why.
 
@@ -167,7 +167,7 @@ create_app(name="recipe-worker", template="app")
    "port_forwarding_available": true,
    "channels": [{"id": "59489f61-ad60-4275-88cd-a6a5a7688f9a",
                  "name": "prod",
-                 "hostname": "recipe-worker-docs.xhostd.com",
+                 "hostname": "recipe-worker-docs.xhostd.app",
                  "git_ref_binding": "branch:master",
                  "current_sha": null,
                  "status": "provisioning"}],
@@ -264,7 +264,7 @@ for the `[build]` lines above it:
 [2026-08-02T15:24:46+00:00] health_check ok
 [2026-08-02T15:24:46+00:00] [container] {"ts": "2026-08-02T15:24:46.443804+00:00", "event": "ready", "interval_s": 5.0}
 [2026-08-02T15:24:46+00:00] [container] {"ts": "2026-08-02T15:24:46.443942+00:00", "event": "tick", "count": 1, "uptime_s": 0.0}
-[2026-08-02T15:24:47+00:00] caddy ensure_route hostname=recipe-worker-docs.xhostd.com upstream=10.77.1.5:32053
+[2026-08-02T15:24:47+00:00] caddy ensure_route hostname=recipe-worker-docs.xhostd.app upstream=10.77.1.5:32053
 [2026-08-02T15:24:47+00:00] pinned deployed sha 706dbe67795ff3488823ef80be7be2a0855dc28e
 [2026-08-02T15:24:47+00:00] deploy success
 ```
@@ -290,7 +290,7 @@ worker's `ready` line share the second `15:24:46`.
 own output, and the `[container]` prefix marks them. `interval_s: 5.0` is the
 default value from `setup`, because the channel set no `TICK_SECONDS`.
 
-**`caddy ensure_route hostname=recipe-worker-docs.xhostd.com`.** The channel
+**`caddy ensure_route hostname=recipe-worker-docs.xhostd.app`.** The channel
 gets its HTTPS route, the same as every other channel. Nothing listens behind
 that route, so the hostname answers 502.
 
@@ -530,11 +530,11 @@ file also goes away with the container at the next deploy. Write to stdout.
 This is correct, and it is not a fault:
 
 ```bash
-$ curl -sS -o /dev/null -w '%{http_code}\n' https://recipe-worker-docs.xhostd.com/
+$ curl -sS -o /dev/null -w '%{http_code}\n' https://recipe-worker-docs.xhostd.app/
 502
 ```
 
-The channel gets `recipe-worker-docs.xhostd.com`, and Caddy routes that
+The channel gets `recipe-worker-docs.xhostd.app`, and Caddy routes that
 hostname. No process listens on the health port, so the proxy has no upstream.
 A 404 from the hostname is different: it tells you that the channel has no
 route, because the deploy did not reach `caddy ensure_route`.

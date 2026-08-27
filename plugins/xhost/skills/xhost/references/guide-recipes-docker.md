@@ -30,7 +30,7 @@ with a new migration applies that migration. Neither step is manual. The
 build takes two seconds when the layer cache is warm.
 
 The worked example is live at
-[recipe-docker-pg-docs.xhostd.com](https://recipe-docker-pg-docs.xhostd.com/).
+[recipe-docker-pg-docs.xhostd.app](https://recipe-docker-pg-docs.xhostd.app/).
 Read it, but do not write to it. It is a real database behind a real write
 API. The note that it lists is the note that this guide's transcript made.
 If you obey the recipe on your own account, you get the same service under
@@ -231,7 +231,7 @@ create_app(name="recipe-docker-pg", template="docker")
    "repo_url": "https://git.xhostd.com/docs/recipe-docker-pg.git",
    "channels": [{"id": "50bdd958-d4e7-41db-8adb-9a49cd8966fd",
                  "name": "prod",
-                 "hostname": "recipe-docker-pg-docs.xhostd.com",
+                 "hostname": "recipe-docker-pg-docs.xhostd.app",
                  "current_sha": null}], ...}
 ```
 
@@ -334,7 +334,7 @@ nothing.
 [2026-07-31T18:38:54+00:00] [container] INFO:     Uvicorn running on http://0.0.0.0:3000 (Press CTRL+C to quit)
 [2026-07-31T18:38:54+00:00] health_check ok
 [2026-07-31T18:38:54+00:00] [container] INFO:     10.77.1.5:45294 - "GET / HTTP/1.1" 200 OK
-[2026-07-31T18:38:54+00:00] caddy ensure_route hostname=recipe-docker-pg-docs.xhostd.com upstream=10.77.1.5:32044
+[2026-07-31T18:38:54+00:00] caddy ensure_route hostname=recipe-docker-pg-docs.xhostd.app upstream=10.77.1.5:32044
 [2026-07-31T18:38:55+00:00] deploy success
 ```
 
@@ -386,10 +386,10 @@ That order is the reason why a redeploy loses no requests.
 Then the two-line proof, against the live demo:
 
 ```bash
-$ curl -sS https://recipe-docker-pg-docs.xhostd.com/
+$ curl -sS https://recipe-docker-pg-docs.xhostd.app/
 {"ok":true,"notes":1,"done":0}
 
-$ curl -sS https://recipe-docker-pg-docs.xhostd.com/notes
+$ curl -sS https://recipe-docker-pg-docs.xhostd.app/notes
 {"notes":[{"id":1,"body":"first note from the recipe","done":false,"created_at":"2026-07-31T18:39:10.159203+00:00"}]}
 ```
 
