@@ -226,13 +226,14 @@ on the machine that you work on.
 The reason is the quantity of data that each path moves. A push sends only the
 diff. Git and the server agree on what the remote already holds, and only the
 difference goes over the network. A tool call cannot do this. A changeset
-carries the full text of every file that it names, through the model's context,
-every time.
+carries what you give it through the model's context, every time. `edits` and
+`patches` narrow that to the region you change, and `files` sends a whole file.
 
 The first commit of one file costs approximately the same on both paths. At the
-tenth edit, the push is a few lines, but the tool call is the full project
-again. Git also gives you what a changeset cannot: branches, a history that you
-can read back, and a local copy that you edit in place.
+tenth edit, the push is a few lines, and the tool call is an anchor plus the
+new text — still more, because a push needs no anchor at all. Git also gives
+you what a changeset cannot: branches, a history that you can read back, and a
+local copy that you edit in place.
 
 **A push stores your code; it does not deploy the code.** These are two
 separate operations, and the separation lets you name the commit that goes

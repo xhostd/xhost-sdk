@@ -20,11 +20,12 @@ Its four steps are the same on every template.
 `commit_files` is not a lesser mode: it writes real commits with your name on
 them. They go into the same repo that a push goes to, and a later
 `git clone` shows them like any other commits. The cost is per edit. A
-changeset sends the full text of every file that it names through the model's
-context, and it does this each time. A push sends only the diff. On a
-one-file first commit the two costs are about equal. At the tenth edit the
-push is a few lines, and the changeset is the whole project again. That is
-why git is always the first choice, whatever the size of the project.
+changeset sends the text you give it through the model's context each time,
+so what you send decides the price. `files` sends a whole file. `edits` and
+`patches` send only the region that changes, which is what you want for any
+file that already exists — a one-line fix in a 78 KB file then costs the
+anchor, not the file. A push still sends less, because it sends a diff and
+needs no anchor, so git stays the first choice.
 
 The worked example is live at
 [recipe-commit-files-docs.xhostd.app](https://recipe-commit-files-docs.xhostd.app/).
@@ -228,6 +229,48 @@ The next deploy came after the file was gone. That result is not a fault. It
 shows you that a commit is not a deploy. A `git push` with no `deploy` after
 it gives the same result.
 
+## Change a file without resending it
+
+`files` sends whole content, which is what you want for a new file. For a file
+that already exists, send the region that changes instead. Two fields do that,
+and one changeset takes any mix of `files`, `edits`, and `patches`. A path
+belongs to exactly one of them.
+
+`edits` replaces an anchored region:
+
+```text
+commit_files(app_id="b882c472-2a7b-414a-994b-d9c7c3bcdcee",
+             message="widen the card",
+             edits={"style.css": [
+               {"old_string": "  max-width: 40rem;",
+                "new_string": "  max-width: 52rem;"}
+             ]})
+```
+
+`old_string` must appear exactly once in the file. If it appears zero times or
+more than once, the whole changeset fails and nothing is written. The error
+tells you the count. Add the lines around it until the anchor is unique, or set
+`"replace_all": true` when every occurrence is meant to change.
+
+`patches` takes hunks, which suit several scattered changes to one file:
+
+```text
+commit_files(app_id="b882c472-2a7b-414a-994b-d9c7c3bcdcee",
+             message="bump the version banner",
+             patches={"index.html": "@@ <footer>\n-  <p>v1.4</p>\n+  <p>v1.5</p>\n"})
+```
+
+A hunk header is `@@`, or `@@ anchor` where the anchor is a line or a unique
+substring copied from the file. Put the anchor on a line the hunk covers, or on
+the line just above it: matching starts there and runs to the end of the file.
+Body lines start with a space for context, `-` to remove, or `+` to add. There are no line numbers and no line counts, so a
+miscounted header cannot happen. Each hunk needs at least one context or `-`
+line, because those lines are what locate it.
+
+Both fields match byte for byte. Whitespace, indentation, and line endings all
+count. Copy anchors from `read_file` output rather than retyping them, and the
+match is far more likely to land the first time.
+
 ## Verify it
 
 ```text
@@ -333,14 +376,16 @@ know which commit is live, call `get_app` for the channel's `current_sha`.
 Call `list_files` for the content of the repo. If the two disagree, the repo
 is ahead and a deploy is absent.
 
-### You send the whole tree on every edit
+### You send the whole file on every edit
 
 It works. The platform applies every changeset on top of the branch head, so
 a file that you send again with no change does no damage. But it costs you
-the text of the whole project on every edit. Send only the paths that change.
+that text every time. Two rules keep the cost down. Name only the paths that
+change, because the platform leaves every other path as it is. Then reach for
+`edits` or `patches` instead of `files` on a file that already exists.
 If git is available on the machine where you work, stop with `commit_files`.
 [Recipe: static site](https://docs.xhostd.com/guides/recipes-static) gives
-the four steps, and a push sends the diff, not the project.
+the four steps, and a push sends the diff, not the file.
 
 ### The file you need to commit is not text
 

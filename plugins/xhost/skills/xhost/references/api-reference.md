@@ -423,7 +423,7 @@ Return the raw bytes of a single file at the given ref. Useful when an agent nee
 
 ## POST /apps/{app_id}/changeset
 
-Apply a sparse changeset to the repo and create one real git commit on top of `ref`'s current HEAD (or as the initial commit on an empty branch). Designed for agents without shell access or local git — string values upsert files, `null` deletes, absent paths are unchanged.
+Apply a sparse changeset to the repo and create one real git commit on top of `ref`'s current HEAD (or as the initial commit on an empty branch). Designed for agents without shell access or local git. Three write fields mix freely in one commit: `changes` (whole content — string values upsert, `null` deletes), `edits` (`{path: [{old_string, new_string, replace_all}]}` — `old_string` must occur exactly once unless `replace_all`), and `patches` (`{path: hunk-text}` — headers are `@@` or `@@ anchor`, body lines begin with a space, `-`, or `+`, and there are no line numbers). Absent paths are unchanged, a path belongs to exactly one field, matching is byte-exact, and any failure fails the whole commit.
 
 **Required scope:** `repo:*`
 
@@ -434,15 +434,26 @@ Apply a sparse changeset to the repo and create one real git commit on top of `r
   "message": "agent: update headline",
   "changes": {
     "index.html": "<!doctype html><h1>hello</h1>",
-    "static/style.css": "body { font-family: sans-serif; }",
     "old-page.html": null
+  },
+  "edits": {
+    "static/style.css": [
+      {"old_string": "  max-width: 40rem;", "new_string": "  max-width: 52rem;"}
+    ]
+  },
+  "patches": {
+    "src/version.ts": "@@ export const VERSION\n-export const VERSION = \"1.4\"\n+export const VERSION = \"1.5\"\n"
   }
 }
 ```
 
 - `ref` (string, optional, default `"master"`) — Target branch. Must match `^[A-Za-z0-9][A-Za-z0-9/_\-\.]*$`. Created if it does not yet exist.
 - `message` (string, required) — Commit message. Must be non-empty.
-- `changes` (object, required) — Map of repo-relative path → string (upsert) or `null` (delete). Paths must be relative and must not contain `..` segments.
+- `changes` (object, optional) — Map of repo-relative path → string (upsert) or `null` (delete). Paths must be relative and must not contain `..` segments.
+- `edits` (object, optional) — Map of path → a list of `{old_string, new_string, replace_all}`. `old_string` must be non-empty and must occur exactly once in the file unless `replace_all` is `true`. Edits apply in list order, each against the result of the previous one. The path must already exist on `ref`.
+- `patches` (object, optional) — Map of path → hunk text. A hunk header is `@@`, or `@@ anchor` where the anchor is a line or unique substring copied from the file. Put the anchor on a line the hunk covers, or on the line just above it: matching starts there and runs to the end of the file. Body lines begin with a space (context), `-` (remove), or `+` (add). There are no line numbers and no line counts, and no trailing context line is required. Each hunk needs at least one context or `-` line. The path must already exist on `ref`.
+
+Send at least one of `changes`, `edits`, or `patches`. A path belongs to exactly one of them. Matching for `edits` and `patches` is byte-exact — whitespace, indentation, and line endings all count. Any failure fails the whole commit and writes nothing.
 
 **Response (200):**
 ```json
@@ -454,7 +465,7 @@ Apply a sparse changeset to the repo and create one real git commit on top of `r
 **Note:** This endpoint creates a commit but does not deploy. Pass the returned `sha` to `POST /apps/{app_id}/channels/{channel_id}/deploy` to ship it. Same two-step model as `git push` followed by deploy.
 
 **Errors:**
-- `bad_request` (400) — invalid path, invalid branch name, empty message, or malformed changeset
+- `bad_request` (400) — invalid path, invalid branch name, empty message, malformed changeset, a path in more than one field, or an edit or hunk whose anchor is absent or ambiguous (the message names the path and the count)
 - `not_found` (404) — app not found
 
 ---

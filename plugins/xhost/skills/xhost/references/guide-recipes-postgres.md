@@ -306,8 +306,9 @@ leaves the schema in a state that `downgrade()` cannot reverse.
 
 The whole app ships in one commit and one deploy: all eight files and both
 migrations. **`git push` and then `deploy` is the standard path.** A push
-sends only the diff. The next schema change thus costs a one-file commit and
-a push, not a tool call with the full text of every file. `commit_files` is
+sends only the diff, and needs no anchor to place it. The next schema change
+thus costs a one-file commit and a push, not a tool call carrying anchors or
+whole files. `commit_files` is
 the fallback for one situation only: git is not available on the machine
 where you work.
 

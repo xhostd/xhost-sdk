@@ -121,7 +121,7 @@ Read `hostname` from the prod channel (it was in step 2's response, and `mcp__xh
 
 ## 7. Iterate
 
-For each follow-up change — "add a section for tea shops", "fix the broken link" — edit the files in the checkout, `git commit`, `git push xhost HEAD:master`, then `deploy` with `ref="master"`. The same `prod` channel id is reused, and the remote is already configured, so a follow-up is a couple of shell commands and one tool call. This is where the standard path pays: the push carries only the lines that changed, so the tenth edit costs about what the first one did — where a `commit_files` changeset would carry the full text of every file it names, again, every time. On the fallback path (no shell), that is still the loop: `commit_files` with only the changed files, then `deploy` with the sha it returns.
+For each follow-up change — "add a section for tea shops", "fix the broken link" — edit the files in the checkout, `git commit`, `git push xhost HEAD:master`, then `deploy` with `ref="master"`. The same `prod` channel id is reused, and the remote is already configured, so a follow-up is a couple of shell commands and one tool call. This is where the standard path pays: the push carries only the lines that changed, so the tenth edit costs about what the first one did — where a `commit_files` changeset carries an anchor and the new text on every edit, and a whole file whenever you send one. On the fallback path (no shell), that is still the loop: `commit_files` — `edits` or `patches` for a file that already exists, `files` for a new one — then `deploy` with the sha it returns.
 
 To preview a change without touching production:
 
