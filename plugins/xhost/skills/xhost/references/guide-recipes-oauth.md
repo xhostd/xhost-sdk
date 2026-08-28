@@ -60,6 +60,14 @@ the channel, the gateway uses `/` instead. Send a visitor to
 `/xhost-auth/login?return_to=/private`. The gateway then returns the visitor to
 the gated page after the sign-in.
 
+The return is a real HTTP navigation: `/finalize` answers a 302, and the
+browser requests `return_to` as a full page load. A single-page app must
+therefore serve `index.html` on every client-side route, or the return 404s
+at the moment the sign-in succeeds. The section "Single-page apps: the
+fallback is yours" in
+[the Docker recipe](https://docs.xhostd.com/guides/recipes-docker) shows the
+fallback.
+
 You configure nothing. The platform owns the Google project, the consent screen
 and the signing key. When you created the app, you completed all the necessary
 steps.

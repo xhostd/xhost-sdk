@@ -536,3 +536,45 @@ A channel that exists but has no route returns **404** on its hostname. A
 channel with a route but no live server returns **502**. Both codes help you.
 A 404 tells you that the deploy did not reach `caddy ensure_route`. A 502
 tells you that the deploy reached it, but the container does not serve.
+
+### Single-page apps: the fallback is yours
+
+A single-page app serves one `index.html`, and a client-side router
+interprets paths such as `/dashboard`. The hosts that such an app migrates
+from often supply a rewrite — nginx with `try_files`, or a platform's
+automatic SPA fallback — that serves `index.html` for every unknown path.
+xhostd has no such rewrite. The edge proxies every path of your hostname
+straight to your container, and it rewrites nothing. Your server decides
+what every path means, so your server must implement the fallback.
+
+The symptom is precise. The app works while the visitor navigates inside it,
+because the router changes the path without a request. A refresh, a deep
+link, or a direct navigation to `/dashboard` then sends a real request for
+that path, and your server answers its own 404 — from FastAPI, a raw
+`{"detail":"Not Found"}`. That response looks like a routing bug in the app.
+It is a missing fallback in the server.
+
+The platform sign-in flow depends on the same fallback. After the sign-in,
+the gateway returns the visitor with a real HTTP navigation to the path the
+visitor was on. If that path exists only in the client-side router, the
+return itself 404s, so a missing fallback also breaks login on those routes.
+
+In FastAPI, register the API routes first, mount the built assets, and end
+with a catch-all that serves `index.html` for every other GET path:
+
+```python
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+
+# The API routes are registered before this point. Starlette matches in
+# registration order, so they win over the catch-all.
+app.mount("/assets", StaticFiles(directory="dist/assets"), name="assets")
+
+
+@app.get("/{path:path}")
+def spa_fallback(path: str):
+    return FileResponse("dist/index.html")
+```
+
+`GET /` also lands in the catch-all and serves `index.html`, so the health
+check gets its 2xx.

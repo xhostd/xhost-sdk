@@ -263,7 +263,11 @@ app's router expects to handle it. This template has no rewrite rule, and no
 `try_files` fallback to `index.html`. nginx serves a path only if a committed
 file is at that path, and answers 404 for all other paths. Write a real file
 at each path that you link to. Or put the app on the `app` template, where
-your own server decides what `/dashboard` means.
+your own server decides what `/dashboard` means. Your server must then serve
+`index.html` for those paths itself — the section "Single-page apps: the
+fallback is yours" in
+[the Docker recipe](https://docs.xhostd.com/guides/recipes-docker) shows the
+fallback.
 
 ### You expected a build step
 

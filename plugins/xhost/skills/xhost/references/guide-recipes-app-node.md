@@ -318,6 +318,35 @@ stop correctly. Always use `exec` for the last command.
 port in `XHOST_HTTP_PORT`, and the platform selects the value. Read the
 variable.
 
+### A client-side route 404s on refresh
+
+A single-page app serves one `index.html`, and a client-side router
+interprets paths such as `/dashboard`. On the host that such an app migrates
+from, a rewrite — nginx `try_files`, or a platform's automatic SPA fallback —
+serves `index.html` for every unknown path. xhostd has no such rewrite. The
+edge proxies every path straight to your server, so Express must serve
+`index.html` for those paths itself. Without the fallback, a refresh or a
+deep link on a client-side route answers Express's own 404. The platform
+sign-in return — a real HTTP navigation back to the path the visitor was on —
+404s for the same reason. Register the API routes first, then end with a
+catch-all:
+
+```js
+import path from "node:path";
+
+// The API routes are registered before this point, so they win over the
+// catch-all.
+app.use(express.static("dist"));
+
+app.get(/.*/, (req, res) => {
+  res.sendFile(path.resolve("dist/index.html"));
+});
+```
+
+The section "Single-page apps: the fallback is yours" in
+[the Docker recipe](https://docs.xhostd.com/guides/recipes-docker) explains
+the failure in full.
+
 The Python equivalent of this recipe is
 [Recipe: Python API on the app template](https://docs.xhostd.com/guides/recipes-app-python).
 If your app has no server-side code, the

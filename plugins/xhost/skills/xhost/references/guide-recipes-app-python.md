@@ -291,6 +291,37 @@ keeps the flags fails immediately. Use `uv pip install --system --no-cache`.
 deploy then installs a dependency upgrade that you did not request. The failure
 then appears on a commit that changed no dependency.
 
+### A client-side route 404s on refresh
+
+A single-page app serves one `index.html`, and a client-side router
+interprets paths such as `/dashboard`. On the host that such an app migrates
+from, a rewrite — nginx `try_files`, or a platform's automatic SPA fallback —
+serves `index.html` for every unknown path. xhostd has no such rewrite. The
+edge proxies every path straight to your server, so your server must serve
+`index.html` for those paths itself. Without the fallback, a refresh or a
+deep link on a client-side route answers FastAPI's own 404, a raw
+`{"detail":"Not Found"}`. The platform sign-in return — a real HTTP
+navigation back to the path the visitor was on — 404s for the same reason.
+Register the API routes first, then end with a catch-all:
+
+```python
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+
+# The API routes are registered before this point. Starlette matches in
+# registration order, so they win over the catch-all.
+app.mount("/assets", StaticFiles(directory="dist/assets"), name="assets")
+
+
+@app.get("/{path:path}")
+def spa_fallback(path: str):
+    return FileResponse("dist/index.html")
+```
+
+The section "Single-page apps: the fallback is yours" in
+[the Docker recipe](https://docs.xhostd.com/guides/recipes-docker) explains
+the failure in full.
+
 ### The ASGI path does not match
 
 `uvicorn app:app` looks for a module `app` and an attribute `app` in that
