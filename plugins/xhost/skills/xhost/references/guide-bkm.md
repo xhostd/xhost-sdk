@@ -14,9 +14,16 @@ reason. A rule without a reason is easy to forget when it is not convenient.
 Do these checks in the given order. A different order costs you the most time.
 
 **1. Did the deploy finish?** `get_deploy_log(app_id, channel_id, deploy_id)`
-gives the record of the build, the health check and the route swap. If the
-deploy failed, no other check helps. The old container still serves the
-traffic, and the URL that you test gives you the previous version.
+answers in its first line: `deploy <id> — <status> (sha <sha>)`, with a
+status of `queued`, `running`, `success`, or `failed`. Read the status from
+that header, not from the log text. Poll while the status is `queued` or
+`running`. The rest of the reply is the record of the build, the health check
+and the route swap. On `failed`, the reason is in the log tail, and no other
+check helps. The old container still serves the traffic, and the URL that you
+test gives you the previous version. `get_app` shows an in-flight deploy too:
+the channel's `pending_deploy` field holds `{deploy_id, sha, status}` until
+the deploy finishes, so an old `current_sha` next to a non-null
+`pending_deploy` means the deploy has not finished, not that it failed.
 
 **2. Is the container alive now?** Call `get_runtime_log(app_id, channel)`
 with **no** `command`. The platform starts no container to answer this call, so

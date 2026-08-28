@@ -163,7 +163,8 @@ so after a push you do not need the sha. `deploy` also accepts `sha` when you
 want an exact commit, and `sha` has priority if you pass both.
 
 `deploy` returns as soon as it queues the deploy, and the work continues in
-the background. Use `get_deploy_log` to follow it.
+the background. Use `get_deploy_log` to follow it: the first line of its
+reply states the outcome.
 
 ## Verify it
 
@@ -173,10 +174,14 @@ get_deploy_log(app_id="aea6786c-52ff-4ed3-bf07-ab3050a42069",
                deploy_id="bbd8effc-a9f2-4b57-a5a1-dcdf830a3861")
 ```
 
-This log comes from that deploy. It has short ids, and it does not include the
-nginx entrypoint lines:
+This is the reply for that deploy. A status header comes first, then the log.
+The transcript has short ids, and it does not include the nginx entrypoint
+lines:
 
 ```text
+deploy bbd8effc — success (sha 206b94135aaa)
+started: 2026-07-31T17:30:18Z   finished: 2026-07-31T17:30:19Z
+
 [2026-07-31T17:30:18+00:00] deploy begin id=bbd8effc-... channel=4e8973a5-... sha=206b9413...
 [2026-07-31T17:30:18+00:00] git_sync ok: synced app=aea6786c-... channel=4e8973a5-... sha=206b9413...
 [2026-07-31T17:30:18+00:00] start_static_site template=static
@@ -192,8 +197,13 @@ nginx entrypoint lines:
 [2026-07-31T17:30:19+00:00] deploy success
 ```
 
-The last line is the important one: `deploy success`. Read the log again until
-it ends with that line, or with a line that names the failure.
+The first line states the outcome. `status` is one of `queued`, `running`,
+`success`, or `failed`. Read the status from that header, not from the log
+text. Poll `get_deploy_log` while the status is `queued` or `running` — the
+log grows as the deploy progresses. `success` means the deploy is done, and
+on `failed` the reason is in the log tail. `get_app` also shows an in-flight
+deploy: the channel's `pending_deploy` field holds `{deploy_id, sha, status}`
+until the deploy finishes, and `null` after.
 
 Learn three points from that log.
 

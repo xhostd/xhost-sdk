@@ -178,7 +178,9 @@ deploy(app_id="3ea579f7-1770-4e5f-84cb-595dad2a4fa6",
 `ref` is a branch name. xhostd resolves it to the current head of that branch,
 so after a push you do not need the sha. `sha` is also permitted, when you want
 an exact commit, and `sha` has priority if you give both. The deploy then runs
-in the background. Read its progress with `get_deploy_log`.
+in the background. Read its progress with `get_deploy_log`: the first line of
+its reply states the outcome, and you poll while the status is `queued` or
+`running`.
 
 ## Verify it
 
@@ -188,10 +190,14 @@ get_deploy_log(app_id="3ea579f7-1770-4e5f-84cb-595dad2a4fa6",
                deploy_id="6bd8ff7c-1d29-4799-9410-b1f8e2f2c5db")
 ```
 
-This is that deploy. The transcript shortens the ids, and it omits the buildkit
-and npm-notice lines, because they teach nothing:
+This is that deploy. The reply starts with a status header, then the log. The
+transcript shortens the ids, and it omits the buildkit and npm-notice lines,
+because they teach nothing:
 
 ```text
+deploy 6bd8ff7c — success (sha 1ba194d3ea3b)
+started: 2026-07-31T17:30:45Z   finished: 2026-07-31T17:30:54Z
+
 [2026-07-31T17:30:45+00:00] deploy begin id=6bd8ff7c-... channel=937e4d14-... sha=1ba194d3...
 [2026-07-31T17:30:45+00:00] git_sync ok: synced app=3ea579f7-... channel=937e4d14-... sha=1ba194d3...
 [2026-07-31T17:30:45+00:00] [build] start sha=1ba194d3ea3be29fc7ab1a0c1a3ce2bbfbefb915

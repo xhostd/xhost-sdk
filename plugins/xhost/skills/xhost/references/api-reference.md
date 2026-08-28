@@ -41,7 +41,8 @@ List all apps owned by the authenticated user.
           "hostname": "my-app-alice.xhostd.app",
           "git_ref_binding": "branch:master",
           "current_sha": "abc1234567890abcdef1234567890abcdef12345",
-          "status": "running"
+          "status": "running",
+          "pending_deploy": null
         }
       ],
       "owner_username": "alice",
@@ -50,6 +51,8 @@ List all apps owned by the authenticated user.
   ]
 }
 ```
+
+- `channels[].pending_deploy` — the channel's newest queued or running deploy, as `{"deploy_id": "uuid", "sha": "...", "status": "queued" | "running"}`, or `null` when nothing is in flight. `current_sha` only advances when a deploy succeeds, so an old `current_sha` next to a non-null `pending_deploy` means the new deploy has not finished yet — it does not mean the deploy failed.
 
 ---
 
@@ -91,7 +94,8 @@ Create a new app. Provisions a git repository and a `prod` channel automatically
       "hostname": "my-app-alice.xhostd.app",
       "git_ref_binding": "branch:master",
       "current_sha": null,
-      "status": "provisioning"
+      "status": "provisioning",
+      "pending_deploy": null
     }
   ],
   "owner_username": "alice",
@@ -140,7 +144,8 @@ List all channels for an app.
     "hostname": "my-app-alice.xhostd.app",
     "git_ref_binding": "branch:master",
     "current_sha": "abc1234...",
-    "status": "running"
+    "status": "running",
+    "pending_deploy": null
   },
   {
     "id": "uuid",
@@ -148,7 +153,8 @@ List all channels for an app.
     "hostname": "wildcard-my-app-alice.xhostd.app",
     "git_ref_binding": "branch:*",
     "current_sha": null,
-    "status": "provisioning"
+    "status": "provisioning",
+    "pending_deploy": null
   }
 ]
 ```
@@ -183,7 +189,8 @@ Create a new channel on an app.
   "hostname": "wildcard-my-app-alice.xhostd.app",
   "git_ref_binding": "branch:*",
   "current_sha": null,
-  "status": "provisioning"
+  "status": "provisioning",
+  "pending_deploy": null
 }
 ```
 
@@ -278,12 +285,36 @@ Instantly rewind a channel to its previous deploy's image — a one-step cutover
 
 ## GET /apps/{app_id}/channels/{channel_id}/logs?deploy={deploy_id}
 
-Fetch the deploy log as plain text.
+Fetch one deploy's status and a byte window of its build log.
 
-**Response (200):** Plain text (`text/plain`) containing the build/deploy log.
+**Query parameters:**
+- `deploy` (required) — the deploy UUID.
+- `offset` (integer, optional) — byte offset to read the log from. Without it, the reply carries the LAST `max_bytes` bytes of the log, advanced past the first newline so the window starts on a whole line. An explicit `offset` reads byte-exactly from that offset, with no line snapping; an offset past the end of the file yields an empty `log`.
+- `max_bytes` (integer, optional, default 16384, max 262144) — window size in bytes.
+
+**Response (200):**
+```json
+{
+  "deploy_id": "uuid",
+  "git_sha": "84c0cf68c769def1234567890abcdef123456789",
+  "status": "success",
+  "started_at": "2026-08-27T14:09:36Z",
+  "finished_at": "2026-08-27T14:10:45Z",
+  "log_bytes": 31004,
+  "offset": 15020,
+  "window_bytes": 15984,
+  "log": "[2026-08-27T14:09:36+00:00] deploy begin ...\n"
+}
+```
+
+- `status` — one of `queued`, `running`, `success`, `failed`. Read the outcome here; never grep the log text for `deploy success`.
+- `finished_at` — `null` while the status is `queued` or `running`.
+- `log_bytes` — the total size of the log file. `offset` is where the returned window starts.
+- `window_bytes` — the byte length of the returned window, counted before utf-8 decoding (`len(log)` is not byte-exact when a window boundary splits a multibyte character). The next page starts at `offset + window_bytes`; `offset + window_bytes` equal to `log_bytes` means the reply reaches the end of the log.
+- A queued deploy whose log file does not exist yet answers 200 with an empty `log` and `log_bytes: 0`, not 404.
 
 **Errors:**
-- `not_found` (404) — deploy not found or log not available yet
+- `not_found` (404) — deploy not found under this app and channel
 
 ---
 

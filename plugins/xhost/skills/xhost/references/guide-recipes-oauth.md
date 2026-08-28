@@ -400,17 +400,22 @@ deploy(app_id="4d06ab64-0e2e-4ed9-96b0-51450fd673c8",
 `ref` is a branch name, and xhostd resolves it to the current head of that
 branch. After a push, you do not need to know the sha. `deploy` also accepts
 `sha` when you want an exact commit, and `sha` has priority if you give both.
-The deploy then runs in the background. Use `get_deploy_log` to follow it.
+The deploy then runs in the background. Use `get_deploy_log` to follow it:
+the first line of its reply states the outcome, and you poll while the
+status is `queued` or `running`.
 
 ## Verify it
 
 ### The deploy log
 
-This is the deploy above, `c141a3e1-00e0-466f-b45d-aad8968edc3f`. The log below
-has no buildkit lines and no uvicorn start-up lines, because they teach
-nothing.
+This is the deploy above, `c141a3e1-00e0-466f-b45d-aad8968edc3f`. The reply
+starts with a status header, then the log. The log below has no buildkit
+lines and no uvicorn start-up lines, because they teach nothing.
 
 ```text
+deploy c141a3e1 — success (sha 499ed23e12f5)
+started: 2026-07-31T18:25:54Z   finished: 2026-07-31T18:26:05Z
+
 ...
 [2026-07-31T18:25:57+00:00] [build] #7 0.814  + cryptography==49.0.0
 [2026-07-31T18:25:57+00:00] [build] #7 0.815  + pyjwt==2.13.0

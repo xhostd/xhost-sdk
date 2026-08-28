@@ -166,7 +166,8 @@ Use `sha` on this path, not `ref`. `commit_files` returns the exact commit
 that it wrote, so you deploy that commit. `ref="master"` is also valid, and it
 resolves to the branch's current head. `sha` wins if you give both. `deploy`
 returns as soon as it queues the deploy, and the work runs asynchronously.
-Follow it with `get_deploy_log`.
+Follow it with `get_deploy_log`: the first line of its reply states the
+outcome.
 
 **4. Change one file, and only that file.** The platform does not change a
 path that the map does not name. This changeset names one new path:
@@ -279,11 +280,15 @@ get_deploy_log(app_id="b882c472-2a7b-414a-994b-d9c7c3bcdcee",
                deploy_id="df8750a5-ada3-45fe-b3b1-1543ec14873d")
 ```
 
-That is the first deploy. The transcript shows short ids. It omits the nginx
-entrypoint lines and the routine per-channel lines for the network, the blob
-route and the channel row:
+That is the first deploy. The reply starts with a status header, then the
+log. The transcript shows short ids. It omits the nginx entrypoint lines and
+the routine per-channel lines for the network, the blob route and the channel
+row:
 
 ```text
+deploy df8750a5 — success (sha 0bf2770b0ab0)
+started: 2026-07-31T23:20:42Z   finished: 2026-07-31T23:20:44Z
+
 [2026-07-31T23:20:42+00:00] deploy begin id=df8750a5-... channel=17a905c3-... sha=0bf2770b...
 [2026-07-31T23:20:42+00:00] git_sync sha=0bf2770b0ab04b119bc4138faf2d9b1a270ab095
 [2026-07-31T23:20:42+00:00] git_sync ok: synced app=b882c472-... channel=17a905c3-... sha=0bf2770b...
@@ -300,8 +305,11 @@ route and the channel row:
 [2026-07-31T23:20:44+00:00] deploy success
 ```
 
-The last line is the important one: `deploy success`. Poll the log until it
-ends with that line, or with a line that names the failure.
+The first line states the outcome. `status` is one of `queued`, `running`,
+`success`, or `failed`. Read the status from that header, not from the log
+text. Poll `get_deploy_log` while the status is `queued` or `running`.
+`success` means the deploy is done, and on `failed` the reason is in the log
+tail.
 
 **`git_sync` is the first step, and it tells you the main fact.** The deploy
 fetches a commit from a git repo, exactly as it does after a push. At that
@@ -374,7 +382,9 @@ not deploy code. Call `deploy` with that `sha`. A push to git with no deploy
 gives the same result, so this failure occurs on both paths. If you do not
 know which commit is live, call `get_app` for the channel's `current_sha`.
 Call `list_files` for the content of the repo. If the two disagree, the repo
-is ahead and a deploy is absent.
+is ahead and a deploy is absent. A non-null `pending_deploy` on the channel
+means the deploy is in flight and `current_sha` has not caught up yet — poll
+`get_deploy_log` rather than starting another deploy.
 
 ### You send the whole file on every edit
 

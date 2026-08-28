@@ -425,17 +425,23 @@ deploy(app_id="efb0f79a-ab98-4bb2-ad8a-40b27ab3f7fc",
 `ref` is a branch name. xhostd resolves it to the current head of that branch,
 so after a push you do not need the sha. `deploy` also accepts `sha` when you
 want an exact commit, and `sha` has priority if you pass both. The deploy then
-runs in the background. Use `get_deploy_log` to follow it.
+runs in the background. Use `get_deploy_log` to follow it: the first line of
+its reply states the outcome, and you poll while the status is `queued` or
+`running`.
 
 ## Verify it
 
 ### The deploy log
 
-This log comes from the deploy above,
-`f81e4372-9891-429d-bf43-ebc8d9259a10`. It does not include the buildkit lines
-that teach nothing. Every deploy of the channel writes the same set of lines.
+This reply comes from the deploy above,
+`f81e4372-9891-429d-bf43-ebc8d9259a10`. The status header comes first, then
+the log. The transcript does not include the buildkit lines that teach
+nothing. Every deploy of the channel writes the same set of lines.
 
 ```text
+deploy f81e4372 — success (sha 98ef841c21ef)
+started: 2026-07-31T22:00:17Z   finished: 2026-07-31T22:00:38Z
+
 ...
 [2026-07-31T22:00:19+00:00] [build] #7 0.482 Resolved 20 packages in 313ms
 [2026-07-31T22:00:21+00:00] [build] #7 1.738 Installed 20 packages in 73ms

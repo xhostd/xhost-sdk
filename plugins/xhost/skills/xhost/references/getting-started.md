@@ -33,7 +33,8 @@ The response looks like:
       "hostname": "lisbon-coffee-alice.xhostd.app",
       "git_ref_binding": "branch:master",
       "current_sha": null,
-      "status": "provisioning"
+      "status": "provisioning",
+      "pending_deploy": null
     }
   ]
 }
@@ -111,7 +112,7 @@ Returns `{"deploy_id": "d…", "channel_id": "c0a1…", "status": "queued"}`. De
 mcp__xhost__get_deploy_log(app_id="f1e2…", channel_id="c0a1…", deploy_id="d…")
 ```
 
-Returns plain text. Poll until the log shows the build finished. `static` deploys take a few seconds; the first `app`-template deploy takes 30–90 seconds because `install.sh` runs.
+The first line of the reply states the outcome: `deploy <id> — <status> (sha <sha>)`, with status one of `queued`, `running`, `success`, or `failed`. Read the status from that header, not from the log text. Poll while the status is `queued` or `running`; on `failed` the reason is in the log tail. `static` deploys take a few seconds; the first `app`-template deploy takes 30–90 seconds because `install.sh` runs. The channel's `pending_deploy` field in `get_app` also shows the in-flight deploy (`null` once it finishes).
 
 ## 6. Hand the user the URL
 
@@ -147,7 +148,7 @@ The preview is live at `https://draft-lisbon-coffee-alice.xhostd.app`.
 
 **"invalid app name"** — name violates the DNS-label rules or starts with a reserved prefix.
 
-**Channel `status: provisioning` after deploy** — deploy is still running. Check `get_deploy_log`.
+**Channel `status: provisioning` after deploy** — deploy is still running. The channel's `pending_deploy` field names it; the first line of `get_deploy_log` gives its status.
 
 **`status: failed`** — read the deploy log; surface the failure to the user in plain language and propose a fix.
 

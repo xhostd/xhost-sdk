@@ -330,17 +330,21 @@ After a push you thus do not need the sha. `sha` is also valid when you want
 an exact commit, and `sha` wins if you give both.
 
 The deploy runs asynchronously. Follow it with
-`get_deploy_log(app_id=..., channel_id=..., deploy_id=...)`. That call
-returns the log as plain text. The log ends with `deploy success`, or with a
-line that names the failure.
+`get_deploy_log(app_id=..., channel_id=..., deploy_id=...)`. The first line
+of the reply states the outcome — `status` is one of `queued`, `running`,
+`success`, or `failed`. Poll while the status is `queued` or `running`, and
+on `failed` the reason is in the log tail.
 
 ## Verify it
 
-This is the deploy above, `abf7a32e-394d-4646-b774-0c12c1c3f046`. The
-transcript shows short ids, and it omits the buildkit lines that teach
-nothing.
+This is the deploy above, `abf7a32e-394d-4646-b774-0c12c1c3f046`. The reply
+starts with a status header, then the log. The transcript shows short ids,
+and it omits the buildkit lines that teach nothing.
 
 ```text
+deploy abf7a32e — success (sha aacda69971a1)
+started: 2026-07-31T18:38:41Z   finished: 2026-07-31T18:38:55Z
+
 [2026-07-31T18:38:41+00:00] deploy begin id=abf7a32e-... channel=50bdd958-... sha=aacda699...
 [2026-07-31T18:38:41+00:00] git_sync ok: synced app=d2ae0f30-... channel=50bdd958-... sha=aacda699...
 [2026-07-31T18:38:41+00:00] [build] start sha=aacda69971a19f0b7e37e613d21b0b361c98c1fa

@@ -170,7 +170,8 @@ create_app(name="recipe-worker", template="app")
                  "hostname": "recipe-worker-docs.xhostd.app",
                  "git_ref_binding": "branch:master",
                  "current_sha": null,
-                 "status": "provisioning"}],
+                 "status": "provisioning",
+                 "pending_deploy": null}],
    "owner_username": "docs",
    ...}
 ```
@@ -249,11 +250,17 @@ no deploy. `deploy` is always its own call.
 
 ### The deploy log
 
-`get_deploy_log(app_id, channel_id, deploy_id)` returns the record. Below is
-the end of deploy `1d923d57-9779-4ffa-a214-542a7d0217b1`. The `...` mark stands
-for the `[build]` lines above it:
+`get_deploy_log(app_id, channel_id, deploy_id)` returns the record: a status
+header first, then the log. The first line states the outcome — poll while
+the status is `queued` or `running`. Below is the end of deploy
+`1d923d57-9779-4ffa-a214-542a7d0217b1`. The platform no longer holds this
+deploy's row, so the header's `started` value comes from the log's own
+timestamps. The `...` mark stands for the `[build]` lines above it:
 
 ```text
+deploy 1d923d57 — success (sha 706dbe67795f)
+started: 2026-08-02T15:24:39Z   finished: 2026-08-02T15:24:47Z
+
 ...
 [2026-08-02T15:24:43+00:00] [build] image 948.68 MB total, 0.02 MB charged — base xhost-runtime:node22-py313 exempt
 [2026-08-02T15:24:45+00:00] channel snapshot saved: 0.01 MB

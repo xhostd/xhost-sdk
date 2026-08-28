@@ -370,12 +370,16 @@ Read these three properties of the address before you give it to your users:
 
 ### The deploy log
 
-These six lines are the proof of the recipe. They are the end of deploy
+These lines are the proof of the recipe. The reply's status header comes
+first; the log lines are the end of deploy
 `06ce028b-2157-477d-9d08-385abbc92939`. The `[...]` marks show where the
 transcript omits other deploy lines: the build and backup lines above, and the
 route and channel lines below. The transcript also shortens the container id:
 
 ```text
+deploy 06ce028b — success (sha 75087f0e4cc1)
+started: 2026-08-01T08:40:03Z   finished: 2026-08-01T08:40:09Z
+
 [...]
 [2026-08-01T08:40:08+00:00] start_static_site template=app
 [2026-08-01T08:40:08+00:00] health_check container=423fc265... port=3000 timeout=120.0s
