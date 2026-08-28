@@ -149,6 +149,18 @@ git remote add xhost "https://<username>:<token>@git.xhostd.com/<username>/<app>
 git push xhost HEAD:master
 ```
 
+> **Security:** `git remote add` with the token in the URL writes it to
+> `.git/config` in plaintext. That one line is a full-scope credential —
+> repo write, every channel's database, and the platform API — good until
+> the token expires or you revoke it. Prefer a form that keeps the token
+> out of the file: the interactive form or the Bearer header covered in
+> the following sections, or a git credential helper
+> (`git config --global credential.helper osxkeychain` on macOS,
+> `manager` on Windows, `libsecret` on Linux) that stores it in your OS
+> keychain. If a repo's `.git/config` is ever exposed, revoke the token
+> on the [tokens page](https://console.xhostd.com/tokens) and mint a new
+> one. For CI, mint a dedicated token you can revoke on its own.
+
 The `HEAD:master` refspec is deliberate here too. xhostd binds the prod
 channel to the `master` branch, and a new local repo often uses `main`
 as its default branch.

@@ -471,6 +471,27 @@ of the eight warm bases above, which usually corrects the whole problem. If
 multi-stage build that copies only the artifact, and give the builder stage a
 warm `FROM` as well.
 
+### The log says a stage is not a warm base
+
+The build log ends with a line like this:
+
+```text
+note: stage 'build-stage' FROM node:20-slim is not a warm base — node:22-slim,
+node:24-slim and node:26-slim pull instantly
+```
+
+The note tells you that one stage started with a network pull that it did not
+need. It does not fail anything. A build-only stage never reaches the charged
+size, so the size line above it cannot tell you this — the note is the only
+place it shows.
+
+Change that stage's `FROM` to one of the named tags. The note names the warm
+tags that share the repository of the base you used, so it answers a
+`python:3.10-slim` builder with the python warm bases.
+
+The note repeats on every deploy until the `FROM` changes, and it appears on a
+failed build too, where a cold base is one more thing to rule out.
+
 ### `CMD` does not `exec` the final process
 
 The form `CMD ["sh", "-c", "alembic upgrade head && uvicorn ..."]` has no
