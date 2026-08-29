@@ -92,7 +92,7 @@ cookie with no `Domain` is host-only. The browser sends it back only to the
 exact hostname that set it. Thus the browser never offers a token from one
 channel to a different channel.
 
-The payload carries seven claims:
+The payload carries eight claims:
 
 | Claim | Meaning |
 |---|---|
@@ -101,8 +101,13 @@ The payload carries seven claims:
 | `sub` | Google's stable user id |
 | `email` | the verified Google address |
 | `name` | display name |
+| `picture` | avatar URL; optional — absent when Google sends none or the URL fails the gateway's check |
 | `iat` | issued at |
 | `exp` | `iat` + 86400 |
+
+`picture` is optional, so never add it to your verifier's `require` list. The
+gateway mints the claim only when Google supplies an `https://` URL of at most
+512 characters. Otherwise the claim is absent, and sign-in still succeeds.
 
 Two of these claims need care.
 
