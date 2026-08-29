@@ -12,7 +12,7 @@ into the container, and boto3 uses them unchanged.
 The two reads are public. The two writes need
 `Authorization: Bearer <token>`. The app compares that token with a
 `WRITE_TOKEN` that you set yourself with
-`set_env(app_id, key="WRITE_TOKEN", value=..., secret=True)`.
+`set_env(app_name, key="WRITE_TOKEN", value=..., secret=True)`.
 
 The split between the reads and the writes is necessary. An app on a public
 hostname that accepts files from anyone is an open object store. That store
@@ -57,7 +57,10 @@ signature version. Pass `endpoint_url`, the key pair and the region to
 `boto3.client("s3", ...)`. Pass nothing more. A `Config(...)` is the most
 common unnecessary edit here. A wrong `Config(...)` — an old
 `signature_version`, or a forced `addressing_style` — makes a correct client
-fail with a signature error.
+fail with a signature error. One named exception is optional:
+`botocore.config.Config(request_checksum_calculation="when_required")`.
+boto3 >= 1.36 computes CRC32 checksums by default and the gateway does not
+store them, so this setting skips the wasted work. It is never required.
 
 **Only code inside the container can reach that endpoint.** It is an overlay
 address. Nothing on your laptop can route to it.
@@ -391,7 +394,7 @@ output of every `git remote -v`.
 **4. Set the write token.** The two write routes check this value.
 
 ```text
-set_env(app_id="efb0f79a-ab98-4bb2-ad8a-40b27ab3f7fc",
+set_env(app_name="recipe-blob",
         key="WRITE_TOKEN",
         value="<a long random value of your own — redacted here>",
         secret=True)
@@ -414,8 +417,8 @@ app refuses every write until you deploy again.
 **5. Deploy the branch.**
 
 ```text
-deploy(app_id="efb0f79a-ab98-4bb2-ad8a-40b27ab3f7fc",
-       channel_id="21eb795a-7071-407b-8cf0-0e4f940af3c8",
+deploy(app_name="recipe-blob",
+       channel="prod",
        ref="master")
 → {"deploy_id": "f81e4372-9891-429d-bf43-ebc8d9259a10",
    "channel_id": "21eb795a-7071-407b-8cf0-0e4f940af3c8",
@@ -674,7 +677,7 @@ compare, the only safe answer is a refusal. The reads still work. Thus the
 deploy passed, and the first upload showed you the fault.
 
 Set the value with
-`set_env(app_id, key="WRITE_TOKEN", value=..., secret=True)`. Then deploy the
+`set_env(app_name, key="WRITE_TOKEN", value=..., secret=True)`. Then deploy the
 channel again. A change to the environment reaches the container at the next
 deploy only. Thus a change against a live channel does nothing until you
 deploy that channel again.
@@ -701,7 +704,10 @@ request that looks correct. They occur on a client that worked before your
 edit, or on the first call of a client that you copied from an AWS example.
 The gateway uses stock SigV4 on the injected endpoint, and boto3's defaults
 are correct for it. Delete the `Config`. Pass only `endpoint_url`, the key
-pair and `region_name`.
+pair and `region_name`. The one `Config` that is safe to keep is
+`botocore.config.Config(request_checksum_calculation="when_required")`: it
+skips checksums the gateway does not store, and it is optional, never
+required.
 
 ### You want an external-access toggle
 

@@ -234,8 +234,8 @@ in your shell history, and in the output of every `git remote -v`.
 ### Step 3 — start the deploy
 
 ```text
-deploy(app_id="26a55c60-c6d0-421d-8d0f-f80e7db90f56",
-       channel_id="59489f61-ad60-4275-88cd-a6a5a7688f9a",
+deploy(app_name="recipe-worker",
+       channel="prod",
        ref="master")
 → {"deploy_id": "1d923d57-9779-4ffa-a214-542a7d0217b1",
    "channel_id": "59489f61-ad60-4275-88cd-a6a5a7688f9a",
@@ -250,7 +250,7 @@ no deploy. `deploy` is always its own call.
 
 ### The deploy log
 
-`get_deploy_log(app_id, channel_id, deploy_id)` returns the record: a status
+`get_deploy_log(app_name, channel, deploy_id)` returns the record: a status
 header first, then the log. The first line states the outcome — poll while
 the status is `queued` or `running`. Below is the end of deploy
 `1d923d57-9779-4ffa-a214-542a7d0217b1`. The platform no longer holds this
@@ -308,7 +308,7 @@ nothing. It is the cheapest call available, because the platform starts no
 container to answer it:
 
 ```text
-get_runtime_log(app_id="26a55c60-c6d0-421d-8d0f-f80e7db90f56", channel="prod")
+get_runtime_log(app_name="recipe-worker", channel="prod")
 → container #1 (xhost-26a55c60-59489f61-00000001) — running
   started: 2026-08-02T15:24:46.182767751Z
   readable containers: #1 (pass container_index to read an older one)
@@ -422,7 +422,7 @@ Call `get_runtime_log` with no `command` after a failed deploy. The header
 describes the dead container:
 
 ```text
-get_runtime_log(app_id="26a55c60-c6d0-421d-8d0f-f80e7db90f56", channel="prod")
+get_runtime_log(app_name="recipe-worker", channel="prod")
 → container #3 (xhost-26a55c60-59489f61-00000003) — exited
   exit code: 1
   restarts: 4
@@ -524,7 +524,7 @@ Two different causes give an empty log.
 **Buffered stdout.** Python buffers stdout in blocks when stdout is not a
 terminal. A worker without a flush shows nothing for a long time, and then a
 block of lines at once. `emit` uses `print(..., flush=True)` for this reason.
-For code that you do not own, `set_env(app_id, key="PYTHONUNBUFFERED",
+For code that you do not own, `set_env(app_name, key="PYTHONUNBUFFERED",
 value="1")` gives the same result.
 
 **A log file inside the container.** The platform captures the stdout and the

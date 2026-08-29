@@ -160,8 +160,8 @@ output of every `git remote -v`.
 **4. Deploy the branch.**
 
 ```text
-deploy(app_id="9e8f7bd3-a30d-45dc-9d01-7ef82c44e8a9",
-       channel_id="44788022-ee4d-458d-802f-277cfda9116c",
+deploy(app_name="recipe-python",
+       channel="prod",
        ref="master")
 → {"deploy_id": "6c58aa48-faa9-422a-b4f2-3f668d247bf1",
    "channel_id": "44788022-ee4d-458d-802f-277cfda9116c",
@@ -178,8 +178,8 @@ status is `queued` or `running`.
 ## Verify it
 
 ```text
-get_deploy_log(app_id="9e8f7bd3-a30d-45dc-9d01-7ef82c44e8a9",
-               channel_id="44788022-ee4d-458d-802f-277cfda9116c",
+get_deploy_log(app_name="recipe-python",
+               channel="prod",
                deploy_id="6c58aa48-faa9-422a-b4f2-3f668d247bf1")
 ```
 

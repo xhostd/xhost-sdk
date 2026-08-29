@@ -302,8 +302,8 @@ in your shell history, and in the output of every `git remote -v`.
 ### Step 3 — deploy the branch
 
 ```text
-deploy(app_id="cb2ecd27-a8dd-4882-99de-fb191f0c8a00",
-       channel_id="a9832287-7684-4f78-94dc-9795761c60d8",
+deploy(app_name="recipe-tcp",
+       channel="prod",
        ref="master")
 → {"deploy_id": "06ce028b-2157-477d-9d08-385abbc92939",
    "channel_id": "a9832287-7684-4f78-94dc-9795761c60d8",
@@ -483,7 +483,7 @@ purpose of a raw TCP port.
 reports what you can read, and it reads nothing:
 
 ```text
-get_runtime_log(app_id="cb2ecd27-a8dd-4882-99de-fb191f0c8a00", channel="prod")
+get_runtime_log(app_name="recipe-tcp", channel="prod")
 → container #1 (xhost-cb2ecd27-a9832287-00000001) — running
   started: 2026-08-01T08:40:08.340361104Z
   readable containers: #1 (pass container_index to read an older one)

@@ -402,8 +402,8 @@ output of every `git remote -v`.
 **4. Deploy the branch.**
 
 ```text
-deploy(app_id="4d06ab64-0e2e-4ed9-96b0-51450fd673c8",
-       channel_id="2997a56a-b7a4-4f9a-992c-2a83ff40578e",
+deploy(app_name="recipe-oauth",
+       channel="prod",
        ref="master")
 → {"deploy_id": "c141a3e1-00e0-466f-b45d-aad8968edc3f",
    "channel_id": "2997a56a-b7a4-4f9a-992c-2a83ff40578e",

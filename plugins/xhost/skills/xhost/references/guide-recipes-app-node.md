@@ -167,8 +167,8 @@ in your shell history, and in the output of every `git remote -v`.
 **4. Deploy the branch.**
 
 ```text
-deploy(app_id="3ea579f7-1770-4e5f-84cb-595dad2a4fa6",
-       channel_id="937e4d14-965c-4959-9adb-effc1555b5b7",
+deploy(app_name="recipe-node",
+       channel="prod",
        ref="master")
 → {"deploy_id": "6bd8ff7c-1d29-4799-9410-b1f8e2f2c5db",
    "channel_id": "937e4d14-965c-4959-9adb-effc1555b5b7",
@@ -185,8 +185,8 @@ its reply states the outcome, and you poll while the status is `queued` or
 ## Verify it
 
 ```text
-get_deploy_log(app_id="3ea579f7-1770-4e5f-84cb-595dad2a4fa6",
-               channel_id="937e4d14-965c-4959-9adb-effc1555b5b7",
+get_deploy_log(app_name="recipe-node",
+               channel="prod",
                deploy_id="6bd8ff7c-1d29-4799-9410-b1f8e2f2c5db")
 ```
 
@@ -253,7 +253,7 @@ To find out if the app is alive, and to read no log, call `get_runtime_log` with
 **no** `command`:
 
 ```text
-get_runtime_log(app_id="3ea579f7-1770-4e5f-84cb-595dad2a4fa6", channel="prod")
+get_runtime_log(app_name="recipe-node", channel="prod")
 ```
 
 A call with no command starts no container on the host, and it returns only the

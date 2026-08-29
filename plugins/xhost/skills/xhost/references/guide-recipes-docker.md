@@ -317,8 +317,8 @@ into the output of every `git remote -v`.
 **4. Deploy the branch.**
 
 ```text
-deploy(app_id="d2ae0f30-36f0-443f-95d1-d937a7bbb676",
-       channel_id="50bdd958-d4e7-41db-8adb-9a49cd8966fd",
+deploy(app_name="recipe-docker-pg",
+       channel="prod",
        ref="master")
 → {"deploy_id": "abf7a32e-394d-4646-b774-0c12c1c3f046",
    "channel_id": "50bdd958-d4e7-41db-8adb-9a49cd8966fd",
@@ -330,7 +330,7 @@ After a push you thus do not need the sha. `sha` is also valid when you want
 an exact commit, and `sha` wins if you give both.
 
 The deploy runs asynchronously. Follow it with
-`get_deploy_log(app_id=..., channel_id=..., deploy_id=...)`. The first line
+`get_deploy_log(app_name=..., channel=..., deploy_id=...)`. The first line
 of the reply states the outcome — `status` is one of `queued`, `running`,
 `success`, or `failed`. Poll while the status is `queued` or `running`, and
 on `failed` the reason is in the log tail.
@@ -434,7 +434,7 @@ To learn whether the app is alive, call `get_runtime_log` with **no**
 `command`:
 
 ```text
-get_runtime_log(app_id="d2ae0f30-36f0-443f-95d1-d937a7bbb676", channel="prod")
+get_runtime_log(app_name="recipe-docker-pg", channel="prod")
 ```
 
 Without a `command`, the call starts no container on the host. It returns the

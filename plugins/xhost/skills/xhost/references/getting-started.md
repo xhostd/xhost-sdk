@@ -40,7 +40,7 @@ The response looks like:
 }
 ```
 
-Remember `app_id` (`f1e2…`) and the prod channel's `id` (`c0a1…`).
+Every later tool addresses the app by name (`app_name="lisbon-coffee"`) and a channel by name (`channel="prod"`); the ids are only needed for the deprecated `app_id`/`channel_id` aliases.
 
 ## 3. Write the site
 
@@ -69,7 +69,7 @@ git push xhost HEAD:master
 
 `HEAD:master` on either transport, because prod is bound to `branch:master` while a fresh `git init` defaults to `main`. Never write the token into a file the user might commit. **Pushing stores the code; it does not deploy** — that is step 4.
 
-**Fallback, one case only:** when git is not available on the machine you are working on — a runtime with no shell, such as the claude.ai connector — use `mcp__xhost__commit_files(app_id, message, files, ref="master")` instead. `files` is a `{path: content-or-null}` map: a string upserts, `null` deletes, and a path you don't name is left alone, so send only what is changing. It returns `{"sha": "abc123…"}`, which is what you then deploy. On GitHub-connected apps it is refused — push to GitHub instead. Worked example: <https://docs.xhostd.com/guides/recipes-commit-files>.
+**Fallback, one case only:** when git is not available on the machine you are working on — a runtime with no shell, such as the claude.ai connector — use `mcp__xhost__commit_files(app_name, message, files, ref="master")` instead. `files` is a `{path: content-or-null}` map: a string upserts, `null` deletes, and a path you don't name is left alone, so send only what is changing. It returns `{"sha": "abc123…"}`, which is what you then deploy. On GitHub-connected apps it is refused — push to GitHub instead. Worked example: <https://docs.xhostd.com/guides/recipes-commit-files>.
 
 For an `app`-template project the push is the same; the repo needs `install.sh` (optional) and `launch.sh` (required) at its root. The deploy only succeeds if the app signals readiness within 120s, and there are **two ways to do that** — whichever comes first. So the process must:
 
@@ -98,8 +98,8 @@ exec gunicorn --bind "0.0.0.0:$XHOST_HTTP_PORT" app:app
 
 ```
 mcp__xhost__deploy(
-  app_id="f1e2…",
-  channel_id="c0a1…",
+  app_name="lisbon-coffee",
+  channel="prod",
   ref="master",
 )
 ```
@@ -109,7 +109,7 @@ Returns `{"deploy_id": "d…", "channel_id": "c0a1…", "status": "queued"}`. De
 ## 5. Watch the build
 
 ```
-mcp__xhost__get_deploy_log(app_id="f1e2…", channel_id="c0a1…", deploy_id="d…")
+mcp__xhost__get_deploy_log(app_name="lisbon-coffee", channel="prod", deploy_id="d…")
 ```
 
 The first line of the reply states the outcome: `deploy <id> — <status> (sha <sha>)`, with status one of `queued`, `running`, `success`, or `failed`. Read the status from that header, not from the log text. Poll while the status is `queued` or `running`; on `failed` the reason is in the log tail. `static` deploys take a few seconds; the first `app`-template deploy takes 30–90 seconds because `install.sh` runs. The channel's `pending_deploy` field in `get_app` also shows the in-flight deploy (`null` once it finishes).
@@ -122,21 +122,21 @@ Read `hostname` from the prod channel (it was in step 2's response, and `mcp__xh
 
 ## 7. Iterate
 
-For each follow-up change — "add a section for tea shops", "fix the broken link" — edit the files in the checkout, `git commit`, `git push xhost HEAD:master`, then `deploy` with `ref="master"`. The same `prod` channel id is reused, and the remote is already configured, so a follow-up is a couple of shell commands and one tool call. This is where the standard path pays: the push carries only the lines that changed, so the tenth edit costs about what the first one did — where a `commit_files` changeset carries an anchor and the new text on every edit, and a whole file whenever you send one. On the fallback path (no shell), that is still the loop: `commit_files` — `edits` or `patches` for a file that already exists, `files` for a new one — then `deploy` with the sha it returns.
+For each follow-up change — "add a section for tea shops", "fix the broken link" — edit the files in the checkout, `git commit`, `git push xhost HEAD:master`, then `deploy` with `ref="master"`. The same `prod` channel is targeted, and the remote is already configured, so a follow-up is a couple of shell commands and one tool call. This is where the standard path pays: the push carries only the lines that changed, so the tenth edit costs about what the first one did — where a `commit_files` changeset carries an anchor and the new text on every edit, and a whole file whenever you send one. On the fallback path (no shell), that is still the loop: `commit_files` — `edits` or `patches` for a file that already exists, `files` for a new one — then `deploy` with the sha it returns.
 
 To preview a change without touching production:
 
 ```
-mcp__xhost__create_channel(app_id="f1e2…", name="draft", git_ref_binding="branch:draft")
+mcp__xhost__create_channel(app_name="lisbon-coffee", name="draft", git_ref_binding="branch:draft")
 git push xhost HEAD:draft
-mcp__xhost__deploy(app_id="f1e2…", channel_id="<draft channel id>", ref="draft")
+mcp__xhost__deploy(app_name="lisbon-coffee", channel="draft", ref="draft")
 ```
 
 The preview is live at `https://draft-lisbon-coffee-alice.xhostd.app`.
 
 ## 8. Optional extras
 
-- **Env vars & secrets:** `mcp__xhost__set_env(app_id, key="STRIPE_KEY", value="sk_…", secret=True)` — mark credentials `secret=True` (values never readable back through MCP; the reveal is a protected action that answers `protected_action` to an agent credential, and it is audit-logged), add `channel="staging"` for a per-channel override that wins over the app default at deploy time. `mcp__xhost__list_env(app_id, channel=…)` shows the resolved view. Every channel automatically has `DATABASE_URL` for its own Postgres database; don't set it.
+- **Env vars & secrets:** `mcp__xhost__set_env(app_name, key="STRIPE_KEY", value="sk_…", secret=True)` — mark credentials `secret=True` (values never readable back through MCP; the reveal is a protected action that answers `protected_action` to an agent credential, and it is audit-logged), add `channel="staging"` for a per-channel override that wins over the app default at deploy time. `mcp__xhost__list_env(app_name, channel=…)` shows the resolved view. Every channel automatically has `DATABASE_URL` for its own Postgres database; don't set it.
 - **Custom domain:** `mcp__xhost__add_custom_domain(app_name, channel, domain)` returns an `instructions` field with the exact TXT + CNAME/A records the user needs to add at their registrar — relay it verbatim. After they add the records, call `mcp__xhost__verify_custom_domain` with the same args. HTTPS works automatically once verified.
 - **Google sign-in for parts of the site:** zero-config — no tool to call. `/xhost-auth/*` works on every channel. After sign-in the gateway sets a signed identity cookie `__Host-xhost_id` (an RS256 JWT) on the channel host; the app verifies it against the JWKS at `https://auth.xhostd.com/xhost-auth/jwks` (pin `RS256`, check `iss`/`aud`/`exp`) and gates its own routes. **xhostd does identity only, never edge gatekeeping — nothing is blocked at the edge, so every route stays public (anonymous visitors get `200`) until your app verifies the cookie and enforces access itself in code.** Send signed-out users to `/xhost-auth/login?return_to=<path>`. `__Host-xhost_id` is a reserved cookie name. Per-stack verify snippets: <https://docs.xhostd.com/oauth>.
 

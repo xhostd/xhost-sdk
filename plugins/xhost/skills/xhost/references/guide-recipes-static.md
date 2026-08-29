@@ -150,8 +150,8 @@ output of every `git remote -v`.
 **4. Deploy the branch.**
 
 ```text
-deploy(app_id="aea6786c-52ff-4ed3-bf07-ab3050a42069",
-       channel_id="4e8973a5-2a78-4326-bd7b-f95506d84b9f",
+deploy(app_name="recipe-static",
+       channel="prod",
        ref="master")
 → {"deploy_id": "bbd8effc-a9f2-4b57-a5a1-dcdf830a3861",
    "channel_id": "4e8973a5-2a78-4326-bd7b-f95506d84b9f",
@@ -169,8 +169,8 @@ reply states the outcome.
 ## Verify it
 
 ```text
-get_deploy_log(app_id="aea6786c-52ff-4ed3-bf07-ab3050a42069",
-               channel_id="4e8973a5-2a78-4326-bd7b-f95506d84b9f",
+get_deploy_log(app_name="recipe-static",
+               channel="prod",
                deploy_id="bbd8effc-a9f2-4b57-a5a1-dcdf830a3861")
 ```
 

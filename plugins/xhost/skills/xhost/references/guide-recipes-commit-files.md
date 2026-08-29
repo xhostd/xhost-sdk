@@ -129,7 +129,7 @@ advantage of the fallback path over the standard path.
 replaces the file if the file exists.
 
 ```text
-commit_files(app_id="b882c472-2a7b-414a-994b-d9c7c3bcdcee",
+commit_files(app_name="recipe-commit-files",
              message="the whole site, in one changeset",
              files={"index.html": "<!doctype html>\n<html lang=\"en\">\n...",
                     "style.css": ":root { color-scheme: light dark; }\n..."})
@@ -145,7 +145,7 @@ both files went through the model's context in full, for one commit.
 path is familiar to you:
 
 ```text
-list_files(app_id="b882c472-2a7b-414a-994b-d9c7c3bcdcee")
+list_files(app_name="recipe-commit-files")
 → {"ref": "master", "sha": "0bf2770b0ab04b119bc4138faf2d9b1a270ab095",
    "files": [{"path": "index.html", "kind": "blob", "size": 815},
              {"path": "style.css", "kind": "blob", "size": 563}]}
@@ -154,8 +154,8 @@ list_files(app_id="b882c472-2a7b-414a-994b-d9c7c3bcdcee")
 **3. Deploy that commit.**
 
 ```text
-deploy(app_id="b882c472-2a7b-414a-994b-d9c7c3bcdcee",
-       channel_id="17a905c3-9365-4c1e-be98-7823f83a2647",
+deploy(app_name="recipe-commit-files",
+       channel="prod",
        sha="0bf2770b0ab04b119bc4138faf2d9b1a270ab095")
 → {"deploy_id": "df8750a5-ada3-45fe-b3b1-1543ec14873d",
    "channel_id": "17a905c3-9365-4c1e-be98-7823f83a2647",
@@ -173,14 +173,14 @@ outcome.
 path that the map does not name. This changeset names one new path:
 
 ```text
-commit_files(app_id="b882c472-2a7b-414a-994b-d9c7c3bcdcee",
+commit_files(app_name="recipe-commit-files",
              message="add robots.txt",
              files={"robots.txt": "User-agent: *\nDisallow:\n"})
 → {"sha": "9664363b9339eec27087c819f49c14c977799134"}
 ```
 
 ```text
-list_files(app_id="b882c472-2a7b-414a-994b-d9c7c3bcdcee")
+list_files(app_name="recipe-commit-files")
 → {"ref": "master", "sha": "9664363b9339eec27087c819f49c14c977799134",
    "files": [{"path": "index.html", "kind": "blob", "size": 815},
              {"path": "robots.txt", "kind": "blob", "size": 24},
@@ -197,14 +197,14 @@ it is. It never deletes the file.** Send only the paths that change.
 **5. Delete it again.** A `null` value removes the path.
 
 ```text
-commit_files(app_id="b882c472-2a7b-414a-994b-d9c7c3bcdcee",
+commit_files(app_name="recipe-commit-files",
              message="drop robots.txt again",
              files={"robots.txt": null})
 → {"sha": "c16fdc6adcc7b64b72603a674c05aef8ca708972"}
 ```
 
 ```text
-list_files(app_id="b882c472-2a7b-414a-994b-d9c7c3bcdcee")
+list_files(app_name="recipe-commit-files")
 → {"ref": "master", "sha": "c16fdc6adcc7b64b72603a674c05aef8ca708972",
    "files": [{"path": "index.html", "kind": "blob", "size": 815},
              {"path": "style.css", "kind": "blob", "size": 563}]}
@@ -216,8 +216,8 @@ different forms, and a map holds one value per path. Then comes the second
 deploy, of `c16fdc6a`:
 
 ```text
-deploy(app_id="b882c472-2a7b-414a-994b-d9c7c3bcdcee",
-       channel_id="17a905c3-9365-4c1e-be98-7823f83a2647",
+deploy(app_name="recipe-commit-files",
+       channel="prod",
        sha="c16fdc6adcc7b64b72603a674c05aef8ca708972")
 → {"deploy_id": "2acbf6ad-91b6-40ce-9e43-c3d1840ffb3b",
    "channel_id": "17a905c3-9365-4c1e-be98-7823f83a2647",
@@ -240,7 +240,7 @@ belongs to exactly one of them.
 `edits` replaces an anchored region:
 
 ```text
-commit_files(app_id="b882c472-2a7b-414a-994b-d9c7c3bcdcee",
+commit_files(app_name="recipe-commit-files",
              message="widen the card",
              edits={"style.css": [
                {"old_string": "  max-width: 40rem;",
@@ -256,7 +256,7 @@ tells you the count. Add the lines around it until the anchor is unique, or set
 `patches` takes hunks, which suit several scattered changes to one file:
 
 ```text
-commit_files(app_id="b882c472-2a7b-414a-994b-d9c7c3bcdcee",
+commit_files(app_name="recipe-commit-files",
              message="bump the version banner",
              patches={"index.html": "@@ <footer>\n-  <p>v1.4</p>\n+  <p>v1.5</p>\n"})
 ```
@@ -275,8 +275,8 @@ match is far more likely to land the first time.
 ## Verify it
 
 ```text
-get_deploy_log(app_id="b882c472-2a7b-414a-994b-d9c7c3bcdcee",
-               channel_id="17a905c3-9365-4c1e-be98-7823f83a2647",
+get_deploy_log(app_name="recipe-commit-files",
+               channel="prod",
                deploy_id="df8750a5-ada3-45fe-b3b1-1543ec14873d")
 ```
 

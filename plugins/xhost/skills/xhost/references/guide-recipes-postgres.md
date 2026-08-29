@@ -319,8 +319,8 @@ full sequence step by step: `create_app`, `get_credentials`, the clone and
 the push, then `deploy`. This guide shows only the call that matters here:
 
 ```text
-deploy(app_id="d2ae0f30-36f0-443f-95d1-d937a7bbb676",
-       channel_id="50bdd958-d4e7-41db-8adb-9a49cd8966fd",
+deploy(app_name="recipe-docker-pg",
+       channel="prod",
        ref="master")
 → {"deploy_id": "abf7a32e-394d-4646-b774-0c12c1c3f046",
    "channel_id": "50bdd958-d4e7-41db-8adb-9a49cd8966fd",
@@ -442,7 +442,7 @@ rows that the restore overwrites are thus not in the snapshot list after it.
 You set the variable to confirm that you accept this:
 
 ```text
-set_env(app_id="d2ae0f30-36f0-443f-95d1-d937a7bbb676",
+set_env(app_name="recipe-docker-pg",
         key="XHOST_ALLOW_PROD_RESTORE", value="1")
 ```
 
@@ -501,7 +501,7 @@ health check. No line in the deploy log mentions the database. Read the
 container's own output, not the health-check line alone:
 
 ```text
-get_runtime_log(app_id="...", channel="prod", command="tail -n 200 app.log")
+get_runtime_log(app_name="...", channel="prod", command="tail -n 200 app.log")
 ```
 
 To correct it, name the driver in the URL at each point where you make an

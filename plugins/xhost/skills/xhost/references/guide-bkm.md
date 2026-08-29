@@ -13,7 +13,7 @@ reason. A rule without a reason is easy to forget when it is not convenient.
 
 Do these checks in the given order. A different order costs you the most time.
 
-**1. Did the deploy finish?** `get_deploy_log(app_id, channel_id, deploy_id)`
+**1. Did the deploy finish?** `get_deploy_log(app_name, channel, deploy_id)`
 answers in its first line: `deploy <id> — <status> (sha <sha>)`, with a
 status of `queued`, `running`, `success`, or `failed`. Read the status from
 that header, not from the log text. Poll while the status is `queued` or
@@ -25,7 +25,7 @@ the channel's `pending_deploy` field holds `{deploy_id, sha, status}` until
 the deploy finishes, so an old `current_sha` next to a non-null
 `pending_deploy` means the deploy has not finished, not that it failed.
 
-**2. Is the container alive now?** Call `get_runtime_log(app_id, channel)`
+**2. Is the container alive now?** Call `get_runtime_log(app_name, channel)`
 with **no** `command`. The platform starts no container to answer this call, so
 it is the cheapest call available. It returns the status header only:
 
@@ -45,7 +45,7 @@ limit)`. Read the header before you read one log line.
 the log itself:
 
 ```
-get_runtime_log(app_id="...", channel="prod", command="tail -n 200 app.log")
+get_runtime_log(app_name="...", channel="prod", command="tail -n 200 app.log")
 ```
 
 The command runs in a temporary Debian container. The platform copies the
@@ -70,7 +70,7 @@ the fault worse, you can still read why the old container was correct. You can
 also read why the new container is not correct:
 
 ```
-get_runtime_log(app_id="...", channel="prod",
+get_runtime_log(app_name="...", channel="prod",
                 command="tail -n 200 app.log", container_index=1)
 ```
 
@@ -92,7 +92,7 @@ follow:
   not a terminal, and the platform does not set `PYTHONUNBUFFERED`. Thus a
   process that stops with a fault can lose its last and most important lines.
   Set the variable yourself:
-  `set_env(app_id, key="PYTHONUNBUFFERED", value="1")`. Node does not have this
+  `set_env(app_name, key="PYTHONUNBUFFERED", value="1")`. Node does not have this
   problem. `PYTHONUNBUFFERED` is not a reserved key, so the platform accepts
   the write.
 
@@ -246,7 +246,7 @@ local copy that you edit in place.
 
 **A push stores your code; it does not deploy the code.** These are two
 separate operations, and the separation lets you name the commit that goes
-live. After a push, call `deploy(app_id, channel_id, ref="master")`. The `ref`
+live. After a push, call `deploy(app_name, channel, ref="master")`. The `ref`
 value is a branch name, and xhostd finds the current head of that branch. Thus
 you never need to know the sha. Pass `sha` instead when you want an exact
 commit. If you pass both, `sha` wins.
@@ -486,7 +486,7 @@ The platform refuses a restore of `prod` unless the app's environment contains
 formality. A restore also returns `channel_busy` if a deploy on that channel is
 in the queue or is active.
 
-**To roll the code back:** call `rewind(app_id, channel_id)`. It moves the
+**To roll the code back:** call `rewind(app_name, channel)`. It moves the
 channel to the image of the last successful deploy with a commit that is
 different from the live commit. It is fast, because it boots an image that the
 platform keeps. There is no new build and no git sync. `rewind` is not
