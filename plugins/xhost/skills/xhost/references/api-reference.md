@@ -124,6 +124,8 @@ Get details of a single app by UUID.
 
 Delete an app and all its channels. Tears down containers, networks, and Caddy routes.
 
+**Required scope:** `repo:*`
+
 **Response:** 204 No Content
 
 **Errors:**
@@ -214,6 +216,8 @@ Get details of a single channel.
 
 Delete a channel. Cannot delete the `prod` channel.
 
+**Required scope:** `channel:*`
+
 **Response:** 204 No Content
 
 **Errors:**
@@ -287,6 +291,8 @@ Instantly rewind a channel to its previous deploy's image — a one-step cutover
 
 Fetch one deploy's status and a byte window of its build log.
 
+**Required scope:** `deploy:*`
+
 **Query parameters:**
 - `deploy` (required) — the deploy UUID.
 - `offset` (integer, optional) — byte offset to read the log from. Without it, the reply carries the LAST `max_bytes` bytes of the log, advanced past the first newline so the window starts on a whole line. An explicit `offset` reads byte-exactly from that offset, with no line snapping; an offset past the end of the file yields an empty `log`.
@@ -324,6 +330,8 @@ The **running** app's stdout/stderr — everything after the deploy window that
 the logs endpoint above covers. The log survives a redeploy: when a new
 version replaces a container, the replaced container's log is archived, so an
 older `container_index` still reads back.
+
+**Required scope:** `deploy:*`
 
 The log is written to `/log/app.log` inside a throwaway container (cwd `/log`),
 and the `command` you send runs there. It is a Debian userland with `sh`,
@@ -381,6 +389,8 @@ the container has nothing here — log to stdout/stderr instead.
 
 Live built-image inventory for one channel (docker-template apps), newest first.
 
+**Required scope:** `deploy:*`
+
 **Request body:** None
 
 **Response (200):**
@@ -415,6 +425,8 @@ Live built-image inventory for one channel (docker-template apps), newest first.
 
 List all files in the repo at the given ref. Lets a stateless agent see the current contents before editing.
 
+**Required scope:** `repo:*`
+
 **Query parameters:**
 
 - `ref` (string, optional, default `master`) — Branch name or 40-char SHA.
@@ -439,6 +451,8 @@ List all files in the repo at the given ref. Lets a stateless agent see the curr
 ## GET /apps/{app_id}/blob
 
 Return the raw bytes of a single file at the given ref. Useful when an agent needs to read existing content before modifying it.
+
+**Required scope:** `repo:*`
 
 **Query parameters:**
 
@@ -534,6 +548,8 @@ Set (upsert) an environment variable or secret on an app.
 
 Delete an environment variable from an app.
 
+**Required scope:** `deploy:*`
+
 **Query parameters:**
 - `channel_id` (optional) — With it, deletes only that channel's override; without it, deletes the app-level default.
 
@@ -544,6 +560,8 @@ Delete an environment variable from an app.
 ## GET /apps/{app_id}/env
 
 List an app's environment variables and secrets.
+
+**Required scope:** `deploy:*`
 
 **Query parameters:**
 - `channel_id` (optional) — Without it, raw rows (app-level and per-channel). With it, the resolved view for that channel: app defaults merged with the channel's overrides, the override winning.
@@ -609,6 +627,8 @@ Reveal one env value — the only read path for `kind: "secret"`. Every call rec
 ## GET /apps/{app_id}/channels/{channel_id}/deploys/{deploy_id}/env
 
 Return the env snapshot recorded when a deploy started — what the app actually ran with.
+
+**Required scope:** `deploy:*`
 
 **Response (200):**
 ```json
