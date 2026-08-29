@@ -315,9 +315,9 @@ Fetch one deploy's status and a byte window of its build log.
 
 - `status` — one of `queued`, `running`, `success`, `failed`. Read the outcome here; never grep the log text for `deploy success`.
 - `finished_at` — `null` while the status is `queued` or `running`.
-- `log_bytes` — the total size of the log file. `offset` is where the returned window starts.
+- `log_bytes` — the total size of the log. `offset` is where the returned window starts.
 - `window_bytes` — the byte length of the returned window, counted before utf-8 decoding (`len(log)` is not byte-exact when a window boundary splits a multibyte character). The next page starts at `offset + window_bytes`; `offset + window_bytes` equal to `log_bytes` means the reply reaches the end of the log.
-- A queued deploy whose log file does not exist yet answers 200 with an empty `log` and `log_bytes: 0`, not 404.
+- A queued deploy with no log yet answers 200 with an empty `log` and `log_bytes: 0`, not 404.
 
 **Errors:**
 - `not_found` (404) — deploy not found under this app and channel
@@ -532,7 +532,7 @@ Set (upsert) an environment variable or secret on an app.
 ```
 
 - `key` (string, required) — Must match `^[A-Z_][A-Z0-9_]*$`. Reserved keys (system-injected) are rejected: `XHOST_USER`, `XHOST_SHA`, `XHOST_HTTP_PORT`, `PORT`, `XHOST_FORWARD_PORT`, `XHOST_READY_FILE`, `DATABASE_URL`, `DATABASE_HOST`, `DATABASE_PASSWORD`, `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_REGION`.
-- `value` (string, required) — The value to set (stored encrypted).
+- `value` (string, required) — The value to set (stored encrypted). Capped at 16 KiB of UTF-8, per value.
 - `kind` (string, optional) — `env` (plain variable) or `secret`. Omitted, an existing key keeps its kind and a new key defaults to `env`. Secret values are omitted from list responses (metadata only); the single reveal path is `GET /apps/{app_id}/env/{key}/value` (the web console's reveal uses the same endpoint), and each reveal is audit-logged.
 - `channel_id` (string, optional) — Omit for an app-level default; set to a channel id for a per-channel override. At deploy time the channel override wins over the app default, and system-injected keys win over both.
 
