@@ -410,17 +410,17 @@ list_channel_snapshots(app_name="recipe-docker-pg", channel="prod")
 → [
     {"snapshot_id": "96879c2a-d99f-4a97-ab13-0de58442bd5f",
      "deploy_id": "e39a2b93-d2b0-4c43-a74d-5eefce5a804d",
-     "created_at": "...", "size_bytes": 6098},
+     "created_at": "..."},
     {"snapshot_id": "3a52f325-b7d3-4960-8105-4e44db6284da",
      "deploy_id": "abf7a32e-394d-4646-b774-0c12c1c3f046",
-     "created_at": "...", "size_bytes": 2159}
+     "created_at": "..."}
   ]
 ```
 
 Read the `deploy_id` on each snapshot. A snapshot is the state immediately
-**before** that deploy. The older snapshot is 2159 bytes: the empty schema,
-from the point before the first deploy's migrations. The newer snapshot is
-6098 bytes, because the table then existed and held the note.
+**before** that deploy. The older snapshot holds the empty schema, from the
+point before the first deploy's migrations. The newer snapshot holds the
+table, which then existed and held the note.
 
 ### Restore the database
 

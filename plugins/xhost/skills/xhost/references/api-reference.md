@@ -665,7 +665,6 @@ List a channel's pre-deploy Postgres snapshots, newest first. A snapshot is take
     "kind": "pre_deploy",
     "git_sha": "abcdef0123456789abcdef0123456789abcdef01",
     "created_at": "2025-01-16T10:30:00Z",
-    "size_bytes": 81920,
     "aligned_blob": true,
     "recoverable": true
   }
@@ -673,10 +672,8 @@ List a channel's pre-deploy Postgres snapshots, newest first. A snapshot is take
 ```
 
 `deploy_id` is null on a `nightly` row, which no deploy triggers. `git_sha` is
-null on a row from before that column. `size_bytes` is null on a marker row,
-which stages no dump file — the platform derives the bytes on demand, so a
-null is not an empty backup. `recoverable` is true while a restore can still
-reach the row, false once it cannot, and null while that is unknown.
+null on a row from before that column. `recoverable` is true while a restore can
+still reach the row, false once it cannot, and null while that is unknown.
 
 **Errors:**
 - `not_found` (404) — app/channel not found or channel Postgres not provisioned
