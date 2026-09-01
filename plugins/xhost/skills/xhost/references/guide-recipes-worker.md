@@ -411,10 +411,10 @@ not after the 120-second health window. The platform tests that the container
 is alive before it tests the ready file, by design. A file that a dead process
 left behind must not certify that process.
 
-**`pre-deploy DB snapshot ... was taken before this failure`.** Every channel
-gets a database, and the platform takes a snapshot of it before each deploy.
-This worker uses no database, so the line changes nothing here. A worker that
-uses one can go back to that snapshot with `restore_channel_db`.
+**`pre-deploy DB snapshot ... was taken before this failure`.** Every non-static
+channel gets a database, and the platform takes a snapshot of it before each
+deploy. This worker uses no database, so the line changes nothing here. A
+worker that uses one can go back to that snapshot with `restore_channel_db`.
 
 ### The crashed container is readable, and the old one still runs
 

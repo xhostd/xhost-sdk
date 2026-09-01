@@ -20,9 +20,10 @@ the `app` template, where the start command is `launch.sh` instead of `CMD`.
 
 ## What you get
 
-Each channel gets its own Postgres database. The platform makes that database
-when it makes the channel. Your container reads the connection details from
-an injected `DATABASE_URL`.
+Each non-static channel gets its own Postgres database. The platform makes that
+database when it makes the channel. Your container reads the connection details
+from an injected `DATABASE_URL`. A static channel has no database, so it gets no
+`DATABASE_URL`.
 
 Schema changes ship as ordinary alembic migrations, and they run at container
 start. The first boot of a new app applies every migration in order against

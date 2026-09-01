@@ -652,7 +652,7 @@ Return the env snapshot recorded when a deploy started — what the app actually
 
 ## GET /apps/{app_id}/channels/{channel_id}/postgres/snapshots
 
-List a channel's pre-deploy Postgres snapshots, newest first. A snapshot is taken automatically before every non-static deploy (unless the app's env sets `XHOST_DEPLOY_SKIP_DB_SNAPSHOT=1`).
+List a channel's pre-deploy Postgres snapshots, newest first. A snapshot is taken automatically before every non-static deploy (unless the app's env sets `XHOST_DEPLOY_SKIP_DB_SNAPSHOT=1`). xhostd keeps the newest 1 on `basic` and the newest 3 on every paid plan, and it ages none of them out.
 
 **Request body:** None
 
@@ -1279,6 +1279,69 @@ The counts and the `sites` rows cover every project the caller can see: the proj
 **Notes:**
 - Returns only the calling user's own apps, channels, deploys, and resource usage.
 - Resource usage (`resources`) reflects the user's systemd cgroup slice (memory and CPU budgets). Values are zero if cgroup limits are not configured.
+
+---
+
+## GET /me/usage
+
+Return the account's total database storage against its SOFT plan cap, plus current-month egress.
+
+The storage cap warns and blocks nothing: no write fails and no deploy fails. Egress has no cap and the payload carries no egress limit field, because no plan states an egress figure: xhostd measures the month's bytes, reports them, counts them against nothing, and charges nothing for them.
+
+**Request body:** None
+
+**Response (200):**
+```json
+{
+  "plan": "basic",
+  "storage_bytes": 1572864,
+  "storage_limit_mb": 250,
+  "bandwidth_month_bytes": 104857600
+}
+```
+
+**Errors:**
+- `503 postgres_unavailable` — the account's database server is unreachable, or a database could not be measured. xhostd never reports a partial total.
+
+---
+
+## GET /plans
+
+Return every plan tier and the caps it grants, lowest rank first. This is the one published source of a cap number: read it instead of hardcoding a limit.
+
+The route takes **no token**, reads no database, and answers every caller the same body. It carries no price — billing lives at Lemon Squeezy.
+
+**Request body:** None
+
+**Response (200):**
+```json
+{
+  "plans": [
+    {
+      "tier": "basic",
+      "rank": 0,
+      "max_channels": 5,
+      "cpu_soft_cores": 0.1,
+      "cpu_burst": 2,
+      "visible_cores": 1,
+      "mem_limit_mb": 128,
+      "storage_mb": 250,
+      "blob_storage_bytes": 1073741824,
+      "image_size_bytes": 536870912,
+      "snapshot_retention_days": 1,
+      "deploy_snapshot_keep": 1,
+      "port_forwarding": false
+    }
+  ]
+}
+```
+
+**Notes:**
+- `storage_mb` is the account-wide database cap and is SOFT: over-limit warns and blocks nothing.
+- No row states an egress figure, because no plan limits egress. xhostd measures your egress and reports it on `GET /me/usage`; nothing counts it against a number and no egress carries a charge.
+- `blob_storage_bytes` is the account-wide object-storage cap and is ENFORCED: the S3 gateway rejects a crossing `PUT` with `507`. `-1` means unlimited.
+- `snapshot_retention_days` ages out `nightly` snapshots; `deploy_snapshot_keep` counts the `pre_deploy` snapshots a channel keeps, and a `pre_deploy` snapshot never ages out.
+- The MCP tool `get_account_overview` composes this route with `/me/stats`, `/me/usage/resources`, `/apps`, `/me/usage` and `/me/blob/storage`, and returns the caps beside the account's current usage in its `plan_headroom` block.
 
 ---
 
