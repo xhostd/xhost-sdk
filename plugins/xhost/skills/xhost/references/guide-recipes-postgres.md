@@ -25,6 +25,13 @@ database when it makes the channel. Your container reads the connection details
 from an injected `DATABASE_URL`. A static channel has no database, so it gets no
 `DATABASE_URL`.
 
+The container also carries `DATABASE_URL_READONLY`: the same database, a
+second role that can `SELECT` from every table in `public` and run no write.
+Use it for a query surface you expose to visitors. Writes and migrations use
+`DATABASE_URL`. Data the read-only role must not see goes in a schema you
+create (`CREATE SCHEMA private`). The Postgres reference page has the whole
+contract.
+
 Schema changes ship as ordinary alembic migrations, and they run at container
 start. The first boot of a new app applies every migration in order against
 an empty database. A later deploy applies only the migrations that are new.
@@ -487,6 +494,40 @@ again.
 A restore of the database does not restore your code. If you restore to a
 state before a migration, also deploy the commit that matches that state.
 If you do not, the next container start applies the migration again.
+
+## PostGIS
+
+The database server marks PostGIS trusted, so a migration installs it
+with no superuser. Install the extension in the migration that first needs
+a geometry column, add the column, and add a GiST index on it in the same
+migration. The extension is a one-time cost of about two seconds and
+7.5 MB per database.
+
+```python
+def upgrade() -> None:
+    op.execute("CREATE EXTENSION IF NOT EXISTS postgis")
+    op.add_column(
+        "places",
+        sa.Column("location", Geometry("POINT", srid=4326), nullable=True),
+    )
+    op.create_index(
+        "ix_places_location",
+        "places",
+        ["location"],
+        postgresql_using="gist",
+    )
+```
+
+`Geometry` comes from the `geoalchemy2` package; add it to
+`requirements.txt` beside `psycopg[binary]`. Raw SQL works the same way:
+`ALTER TABLE places ADD COLUMN location geometry(Point, 4326)` and
+`CREATE INDEX ix_places_location ON places USING GIST (location)`.
+
+Only `postgis` is installable. `postgis_raster`, `postgis_topology`,
+`postgis_sfcgal`, and the tiger geocoder stay untrusted. `spatial_ref_sys`
+is read-only for your role, with every EPSG code present. A snapshot
+restore, a move, and an export all carry a PostGIS database. The Postgres
+reference page has the details.
 
 ## When it goes wrong
 

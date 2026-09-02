@@ -531,7 +531,7 @@ Set (upsert) an environment variable or secret on an app.
 }
 ```
 
-- `key` (string, required) — Must match `^[A-Z_][A-Z0-9_]*$`. Reserved keys (system-injected) are rejected: `XHOST_USER`, `XHOST_SHA`, `XHOST_HTTP_PORT`, `PORT`, `XHOST_FORWARD_PORT`, `XHOST_READY_FILE`, `DATABASE_URL`, `DATABASE_HOST`, `DATABASE_PASSWORD`, `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_REGION`.
+- `key` (string, required) — Must match `^[A-Z_][A-Z0-9_]*$`. Reserved keys (system-injected) are rejected: `XHOST_USER`, `XHOST_SHA`, `XHOST_HTTP_PORT`, `PORT`, `XHOST_FORWARD_PORT`, `XHOST_READY_FILE`, `DATABASE_URL`, `DATABASE_URL_READONLY`, `DATABASE_HOST`, `DATABASE_PASSWORD`, `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_REGION`.
 - `value` (string, required) — The value to set (stored encrypted). Capped at 16 KiB of UTF-8, per value.
 - `kind` (string, optional) — `env` (plain variable) or `secret`. Omitted, an existing key keeps its kind and a new key defaults to `env`. Secret values are omitted from list responses (metadata only); the single reveal path is `GET /apps/{app_id}/env/{key}/value` (the web console's reveal uses the same endpoint), and each reveal is audit-logged.
 - `channel_id` (string, optional) — Omit for an app-level default; set to a channel id for a per-channel override. At deploy time the channel override wins over the app default, and system-injected keys win over both.
