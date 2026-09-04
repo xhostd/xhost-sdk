@@ -4,7 +4,7 @@ This is the underlying HTTP API that the MCP tools wrap. For normal agent usage,
 
 Base URL: `https://api.xhostd.com`
 
-All authenticated endpoints require the header: `Authorization: Bearer <token>` where `<token>` is either the user's OAuth-issued bearer (carried by the MCP server) or a 30-day unified credential minted via the `get_credentials` MCP tool (git + Postgres + platform API, full default scopes).
+All authenticated endpoints require the header: `Authorization: Bearer <token>` where `<token>` is either the user's OAuth-issued bearer (carried by the MCP server) or a unified credential minted via the `get_credentials` MCP tool (git + Postgres + object storage + downloads + platform API, full default scopes, 30 days). Pass `scopes` and `expires_in` to that tool for a narrower, shorter-lived credential.
 
 All error responses use the envelope: `{"error": {"code": "<code>", "message": "<message>"}}`
 
@@ -1043,7 +1043,7 @@ Poll an export's progress. Statuses: `queued`, `running`, `ready`, `failed`.
 
 ## POST /exports/{export_id}/download-token
 
-Mint a short-lived `exports:read` token for a ready, owned export. The download routes (`GET /exports/{export_id}/download` for the archive; `GET /exports/{export_id}/download/blobs` for the object-storage tarball, when included) accept only this token as a bearer.
+Mint a short-lived `exports:read` token for a ready, owned export. A unified credential already reaches the download routes, because `exports:read` is default-granted; use this route when you want a single-purpose token instead — for example one you paste into a `curl` command, where a full credential would expose your git and Postgres passwords.
 
 **Response (200):**
 ```json
@@ -1064,15 +1064,16 @@ Mint a short-lived `exports:read` token for a ready, owned export. The download 
 
 ## POST /credentials
 
-Mint a 30-day unified credential for the authenticated user. The returned token serves as your git password, Postgres password, and platform API bearer, and carries the full default scope set (`repo:*`, `deploy:*`, `channel:*`, `db:*`, `blob:*`, `stats:read`).
+Mint a unified credential for the authenticated user. The returned token serves as your git password, Postgres password, and platform API bearer, and carries the full default scope set (`repo:*`, `deploy:*`, `channel:*`, `db:*`, `blob:*`, `stats:read`, `exports:read`, `snapshots:read`, `blobs:read`). It lives 30 days unless you ask for less.
 
 **Request body (optional):**
 ```json
 {
-  "scopes": ["repo:*", "db:*"]
+  "scopes": ["repo:*", "db:*"],
+  "expires_in": 3600
 }
 ```
-`scopes`, when supplied, must be a non-empty subset of the default set and mints a least-privilege credential. Omit the body (or the field) to get the full default scopes.
+`scopes`, when supplied, must be a non-empty subset of the default set and mints a least-privilege credential. `expires_in` is a lifetime in seconds, at most `2592000` (30 days); omit it for 30 days. The two compose, so a credential for one job can be both least-privilege and short-lived — `{"scopes": ["repo:*"], "expires_in": 3600}` is an hour of git access and nothing else. Prefer that over a full-scope credential whenever you know the job.
 
 **Response (200):**
 ```json
@@ -1080,9 +1081,12 @@ Mint a 30-day unified credential for the authenticated user. The returned token 
   "token": "xh_...",
   "username": "alice",
   "expires_at": "2025-01-16T10:30:00Z",
-  "scopes": ["repo:*", "deploy:*", "channel:*", "db:*", "blob:*", "stats:read"]
+  "scopes": ["repo:*", "deploy:*", "channel:*", "db:*", "blob:*", "stats:read", "exports:read", "snapshots:read", "blobs:read"]
 }
 ```
+
+**Errors:**
+- `bad_request` (400) — `scopes` empty, unknown, or outside the default set; `expires_in` not positive or above the ceiling
 
 **SSH is the first git transport wherever a shell is available, and it needs no token** — see `POST /ssh-keys` below. This token stays required for the HTTPS push, for Postgres and for the platform API.
 
@@ -1449,9 +1453,9 @@ in to the console. The user transfers the project there.
 
 ## Token Scopes
 
-OAuth-issued bearer tokens (used by the MCP server) carry the full default scope set: `repo:*`, `deploy:*`, `channel:*`, `db:*`, `blob:*`, `stats:read`.
+OAuth-issued bearer tokens (used by the MCP server) carry the full default scope set: `repo:*`, `deploy:*`, `channel:*`, `db:*`, `blob:*`, `stats:read`, `exports:read`, `snapshots:read`, `blobs:read`.
 
-Unified credentials minted via `POST /credentials` carry the full default scope set (`repo:*`, `deploy:*`, `channel:*`, `db:*`, `blob:*`, `stats:read`) unless a narrower `scopes` subset is requested.
+Unified credentials minted via `POST /credentials` carry the full default scope set (`repo:*`, `deploy:*`, `channel:*`, `db:*`, `blob:*`, `stats:read`, `exports:read`, `snapshots:read`, `blobs:read`) unless a narrower `scopes` subset is requested, and live 30 days unless a shorter `expires_in` is requested.
 
 | Scope | Grants |
 |-------|--------|
@@ -1461,3 +1465,6 @@ Unified credentials minted via `POST /credentials` carry the full default scope 
 | `db:*` | Connect to Postgres through the database gateway (external DB access) |
 | `blob:*` | Mint object-storage credentials for a channel |
 | `stats:read` | Read public account, resource, app, channel, health, and admin statistics |
+| `exports:read` | Download a ready export archive |
+| `snapshots:read` | Download a Postgres snapshot extract |
+| `blobs:read` | Download an object-storage snapshot tarball |

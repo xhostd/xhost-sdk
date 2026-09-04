@@ -72,7 +72,7 @@ S4. `git remote add xhost-ssh "git@git.xhostd.com:<username>/<app>.git"` then `G
 
 **HTTPS — the fallback:**
 
-H1. Call **`mcp__xhost__get_credentials`**. Returns `{token, username, expires_at, scopes}`. The token expires in 30 days and is the unified credential — one `xh_` secret carrying the full default scopes, so it is your git password, your Postgres password, and your platform API bearer at once.
+H1. Call **`mcp__xhost__get_credentials`**. Returns `{token, username, expires_at, scopes}`. The token expires in 30 days and is the unified credential — one `xh_` secret carrying the full default scopes, so it is your git password, your Postgres password, your object-storage and download credential, and your platform API bearer at once. Pass `scopes` (a subset) and `expires_in` (seconds, at most 2592000) when you know the job: `scopes=["repo:*"], expires_in=3600` is an hour of git access and nothing else.
 H2. Get the app's `repo_url` via `mcp__xhost__get_app` (`app_name`). It looks like `https://git.xhostd.com/<username>/<app>.git`.
 H3. Configure the remote with the token in the **password** field (any username works — the password is what git.xhostd.com checks):
    ```
@@ -253,7 +253,7 @@ Port forwarding:
 - `unexpose_port` — Unexpose Port: release the endpoint; new connections are refused at once, connections already established keep running until they close on their own (to drop those too, `deploy` the channel afterwards — cutover replaces the container, ending every session into the old one), and re-exposing gets a new address.
 
 Git:
-- `get_credentials` — Get Access Credentials: 30-day unified credential (git + Postgres + platform API). The token for the HTTPS `git push` path; an SSH push needs no token.
+- `get_credentials` — Get Access Credentials: unified credential (git + Postgres + object storage + downloads + platform API), 30 days by default. Takes optional `scopes` and `expires_in` for a least-privilege, short-lived credential. The token for the HTTPS `git push` path; an SSH push needs no token.
 - `sync_git` — Sync Git: fetch the connected GitHub repo into the app's xhostd mirror → status ({last_sync_status, last_sync_refs, ...}). Deploys auto-sync; use this to refresh without deploying.
 
 SSH keys (git over SSH):
