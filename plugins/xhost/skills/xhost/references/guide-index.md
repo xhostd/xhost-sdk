@@ -14,6 +14,14 @@ here.
 [Push code with git](https://docs.xhostd.com/guides/git) tells you about the
 credential, the remote URL and the `git push` command.
 
+## Operate your projects
+
+- [Projects & channels](https://docs.xhostd.com/guides/projects-and-channels) — Project scope, channel isolation, and shared account capacity.
+- [Deployments](https://docs.xhostd.com/guides/deployments) — Push a revision, review a deployment, and distinguish results from serving state.
+- [Data & recovery](https://docs.xhostd.com/guides/data-and-recovery) — Postgres, files, recovery points, exports, and restore safeguards.
+- [Access & security](https://docs.xhostd.com/guides/access-and-security) — Membership, credentials, protected agent actions, and app sign-in.
+- [Troubleshooting](https://docs.xhostd.com/guides/troubleshooting) — Find build, runtime, traffic, and resource evidence.
+
 ## The recipes
 
 The table lists the available guides. Each guide is complete in itself. You do

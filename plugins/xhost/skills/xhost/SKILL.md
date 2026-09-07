@@ -285,6 +285,11 @@ Export (takeout):
 
 - `references/getting-started.md` — End-to-end worked example (non-technical user, agent-driven).
 - `references/api-reference.md` — Underlying HTTP API surface for deep dives.
+- `references/guide-projects-and-channels.md` — Projects & channels: Project scope, channel isolation, and shared account capacity.
+- `references/guide-deployments.md` — Deployments: Push a revision, review a deployment, and distinguish results from serving state.
+- `references/guide-data-and-recovery.md` — Data & recovery: Postgres, files, recovery points, exports, and restore safeguards.
+- `references/guide-access-and-security.md` — Access & security: Membership, credentials, protected agent actions, and app sign-in.
+- `references/guide-troubleshooting.md` — Troubleshooting: Find build, runtime, traffic, and resource evidence.
 - `references/guide-git.md` — Push code with git: the unified credential, the remote URL with the token in the password field, and the `HEAD:master` refspec.
 - `references/guide-index.md` — Index of the worked deployment recipes: what each one deploys, and how a recipe is structured.
 - `references/guide-recipes-static.md` — Static site: an HTML/CSS/JS repo served as-is by nginx, no build step and no process of your own.
