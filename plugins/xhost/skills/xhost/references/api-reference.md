@@ -1,14 +1,14 @@
 # xhostd API Reference
 
-This is the underlying HTTP API that the MCP tools wrap. For normal agent usage, prefer the `mcp__xhost__*` tools — they handle auth automatically via OAuth and do not require any user-facing token step. This reference is here for deep dives, debugging, or direct programmatic access.
+This is the underlying HTTP API that the MCP tools wrap. For normal agent usage, prefer the `mcp__xhost__*` tools — an OAuth session or a registered agent's token authenticates them. This reference is here for deep dives, debugging, or direct programmatic access.
 
 Base URL: `https://api.xhostd.com`
 
-All authenticated endpoints require the header: `Authorization: Bearer <token>` where `<token>` is either the user's OAuth-issued bearer (carried by the MCP server) or a unified credential minted via the `get_credentials` MCP tool (git + Postgres + object storage + downloads + platform API, full default scopes, 30 days). Pass `scopes` and `expires_in` to that tool for a narrower, shorter-lived credential.
+All authenticated endpoints require the header: `Authorization: Bearer <token>` where `<token>` is either the user's OAuth-issued bearer (carried by the MCP server) or a unified credential minted via the `get_credentials` MCP tool (git + Postgres + object storage + downloads + platform API, full default scopes, 30 days), or the 30-day token `POST /registrations` or `POST /auth/ssh-key` answers an agent that registered with its SSH key. Pass `scopes` and `expires_in` to the `get_credentials` tool for a narrower, shorter-lived credential.
 
 All error responses use the envelope: `{"error": {"code": "<code>", "message": "<message>"}}`
 
-> **Signing up** happens in the browser via Google sign-in on first OAuth authorization. There is no signup API.
+> **Signing up** happens in the browser via Google sign-in for a person. An agent with no person present registers through `POST /registrations`; read `## POST /registrations`.
 
 ---
 
@@ -1104,12 +1104,14 @@ Register one OpenSSH public key on the authenticated user's account, for git ove
 ```json
 {
   "public_key": "ssh-ed25519 AAAAC3Nza... agent@box",
-  "label": "claude-code"
+  "label": "claude-code",
+  "api_login": false
 }
 ```
 
 - `public_key` (string, required) — one OpenSSH public-key line.
 - `label` (string, optional) — your own name for the key; max 64 characters.
+- `api_login` (boolean, optional, default false) — true lets the key sign in through `POST /auth/ssh-key`; a registration key has it set already.
 
 Unknown fields are refused: this route answers **422** for a body that holds a field it does not declare (e.g. `name` in place of `label`).
 
@@ -1121,7 +1123,8 @@ Unknown fields are refused: this route answers **422** for a body that holds a f
   "algo": "ssh-ed25519",
   "fingerprint": "SHA256:abc...",
   "created_at": "2026-08-17T10:30:00Z",
-  "last_used_at": null
+  "last_used_at": null,
+  "api_login": false
 }
 ```
 
@@ -1147,13 +1150,14 @@ List the authenticated user's SSH keys, newest first. Metadata only — no route
       "algo": "ssh-ed25519",
       "fingerprint": "SHA256:abc...",
       "created_at": "2026-08-17T10:30:00Z",
-      "last_used_at": null
+      "last_used_at": null,
+      "api_login": false
     }
   ]
 }
 ```
 
-`last_used_at` is null while the key served no git command yet.
+`last_used_at` is null while the key served no git command yet. `api_login` is true for a key that can sign in through `POST /auth/ssh-key`: the registration key, or a key posted with the field set.
 
 ---
 
@@ -1165,6 +1169,141 @@ Delete one SSH key the caller owns. The delete is the whole revoke, so a push wi
 
 **Errors:**
 - `not_found` (404) — no such key, or the key belongs to another account
+
+---
+
+## POST /registrations
+
+Open a `starter` account for the holder of an `ssh-ed25519` key, with no person and no browser. **No bearer**: the signed message is the proof. The response holds a 30-day token with the default scopes, and the key is registered on the account with `api_login`, so it renews the token through `POST /auth/ssh-key` and pushes over SSH with no further call. Full recipe: `guide-register-as-agent.md`.
+
+**Request body:**
+```json
+{
+  "public_key": "ssh-ed25519 AAAAC3Nza... agent@box",
+  "timestamp": 1788000000,
+  "signature": "-----BEGIN SSH SIGNATURE-----\n...\n-----END SSH SIGNATURE-----\n",
+  "username": "agentlisbon7",
+  "label": "registration"
+}
+```
+
+- `public_key` (string, required) — one OpenSSH public-key line; `ssh-ed25519` only.
+- `timestamp` (integer, required) — Unix seconds; within 300 seconds of the platform clock.
+- `signature` (string, required) — the armored block `ssh-keygen -Y sign -n xhostd-register` wrote over the message.
+- `username` (string, optional) — `^agent[a-z0-9]{5,35}$`; absent means the platform allocates `agent` plus 8 random characters.
+- `label` (string, optional) — the key's label, 64 characters or fewer; default `registration`.
+
+Unknown fields answer **422**.
+
+**The message** is three lines of UTF-8 text, each with a trailing newline, signed under the namespace `xhostd-register`. The second line is empty when the platform allocates the name, and it must equal `username` when you send one:
+
+```
+xhostd-register\n<username or empty>\n<timestamp>\n
+```
+
+**Response (200):**
+```json
+{
+  "user_id": "uuid",
+  "username": "agent7k2m9x4q",
+  "plan": "starter",
+  "token": "xh_...",
+  "token_expires_at": "2026-10-07T12:00:00Z",
+  "ssh_key_id": "uuid",
+  "fingerprint_sha256": "SHA256:abc...",
+  "git_ssh_host": "git.xhostd.com",
+  "limits": { "tier": "starter", "max_channels": 1, "blob_storage_bytes": 134217728, "...": "..." },
+  "next": { "verify_email": "POST /me/email-verifications", "renew_token": "POST /auth/ssh-key" }
+}
+```
+
+`limits` is the `starter` row of `GET /plans`. Store `token` in a file with mode 0600 (`~/.config/xhostd/token`); never print it.
+
+**Errors:**
+- `bad_request` (400) — a key line the parser refuses; a key of another type (`only ssh-ed25519 keys can register or sign in`); `timestamp is outside the 300-second window; check the clock and sign again`; a block that does not verify (`invalid signature`, `signature namespace mismatch`, `the signature was made with a different key`); a requested name outside the rule; a label over 64 characters
+- `conflict` (409) — `username is taken`; `this ssh key is registered already; sign in with it through POST /auth/ssh-key` (never make a second key: renew with this one); `could not allocate a username; retry`
+- *(no code)* (422) — an unknown or missing field
+- `too_many_requests` (429) — `agent registration budget reached (global); retry later` or `(this source)`; retry the next day
+- `service_unavailable` (503) — `agent registration is closed`
+
+---
+
+## POST /auth/ssh-key
+
+Mint a fresh 30-day default-scope token for a key registered with `api_login`. **No bearer**: the signed message is the proof. The registration key qualifies; a key `POST /ssh-keys` stored with `api_login: true` qualifies too.
+
+**Request body:** `public_key`, `timestamp`, `signature`, as for `POST /registrations`; no other field (**422** otherwise).
+
+**The message**, signed under the namespace `xhostd-login`. The fingerprint is the `SHA256:...` value `ssh-keygen -lf` prints, prefix included:
+
+```
+xhostd-login\n<fingerprint_sha256>\n<timestamp>\n
+```
+
+**Response (200):**
+```json
+{
+  "token": "xh_...",
+  "token_expires_at": "2026-11-06T12:00:00Z",
+  "user_id": "uuid",
+  "username": "agent7k2m9x4q"
+}
+```
+
+An account holds at most 20 tokens from this route. After a renewal, remove and re-add the MCP server so its header carries the new token.
+
+**Errors:**
+- `bad_request` (400) — a bad key line, a stale timestamp, or a block that does not verify, as for `POST /registrations`
+- `not_found` (404) — `no api-login ssh key matches this fingerprint`: an unknown key, or one without `api_login`; register the key through `POST /registrations`
+
+---
+
+## POST /me/email-verifications
+
+Start one email challenge for the caller's account. Bearer required, no scope. The platform mails an 8-character code (lowercase letters and digits without `0`, `1`, `i`, `l`, `o`) that expires in 15 minutes. The first of the two steps that move a `starter` account to `basic`. MCP: `request_email_verification(email)`.
+
+**Request body:**
+```json
+{ "email": "owner@example.com" }
+```
+
+**Response (200):**
+```json
+{ "status": "sent", "expires_at": "2026-09-07T12:15:00Z" }
+```
+
+The response repeats no address.
+
+**Errors:**
+- `bad_request` (400) — `enter a valid email address`
+- `conflict` (409) — `this account already has a verified email`
+- *(no code)* (422) — an unknown or missing field
+- `too_many_requests` (429) — `a verification code was sent less than 60 seconds ago; wait before you ask again`
+
+---
+
+## POST /me/email-verifications/complete
+
+Prove the code. Bearer required, no scope. Success writes the address as the account's sign-in email, moves a `starter` account to `basic`, and queues the plan apply that raises the limits. From then on Google sign-in with that address opens the console for this account, where a person sees and revokes the registration key and the tokens. MCP: `complete_email_verification(code)`.
+
+**Request body:**
+```json
+{ "code": "abcd2345" }
+```
+
+**Response (200):**
+```json
+{ "status": "verified", "plan": "basic", "apply_queued": true }
+```
+
+`apply_queued` is false when a move holds the account; the apply runs after it.
+
+**Errors:**
+- `bad_request` (400) — `wrong code`; the attempt counts
+- `conflict` (409) — `this email belongs to another account`; the challenge clears, the plan stays
+- `gone` (410) — `no verification is pending; request a code first`, or `the verification code expired; request a new one`
+- *(no code)* (422) — an unknown or missing field
+- `too_many_requests` (429) — `too many wrong codes; request a new code`: five wrong codes locked the challenge, and the right code answers this too
 
 ---
 
@@ -1323,7 +1462,7 @@ The route takes **no token**, reads no database, and answers every caller the sa
   "plans": [
     {
       "tier": "basic",
-      "rank": 0,
+      "rank": 1,
       "max_channels": 5,
       "cpu_soft_cores": 0.1,
       "cpu_burst": 2,
@@ -1334,13 +1473,15 @@ The route takes **no token**, reads no database, and answers every caller the sa
       "image_size_bytes": 536870912,
       "snapshot_retention_days": 1,
       "deploy_snapshot_keep": 1,
-      "port_forwarding": false
+      "port_forwarding": false,
+      "agent_registration_only": false
     }
   ]
 }
 ```
 
 **Notes:**
+- `agent_registration_only` is true for a tier only the agent registration API can create an account on (`starter`, rank 0). The console never offers it, and `POST /me/billing/plan` refuses it.
 - `storage_mb` is the account-wide database cap and is SOFT: over-limit warns and blocks nothing.
 - No row states an egress figure, because no plan limits egress. xhostd measures your egress and reports it on `GET /me/usage`; nothing counts it against a number and no egress carries a charge.
 - `blob_storage_bytes` is the account-wide object-storage cap and is ENFORCED: the S3 gateway rejects a crossing `PUT` with `507`. `-1` means unlimited.
@@ -1412,10 +1553,12 @@ The `<name>` portion (when not `*`) must match: `^[A-Za-z0-9][A-Za-z0-9/_\-\.]*$
 | `admin_not_configured` | 403 | Server admin user not set up |
 | `not_found` | 404 | Resource does not exist or is not owned by caller |
 | `bad_request` | 400 | Validation failure (see message for details) |
-| `conflict` | 409 | State conflict (e.g. `domain_taken`, `channel_busy`, export already running) |
-| *(no code)* | 422 | A body that fails validation — a missing field on any route, or an unknown field on `POST /ssh-keys`, the one route that refuses one. This answer carries FastAPI's `{"detail": [...]}` shape, not the `{"error": {...}}` envelope, so an MCP client shows it as a pydantic report. Read the field name in `detail`, correct it, and call again. Do not retry the same body: it fails again |
+| `conflict` | 409 | State conflict (e.g. `domain_taken`, `channel_busy`, export already running, a registered key or a taken username on `POST /registrations`, a verified email on the verification routes) |
+| `gone` | 410 | The thing the call acts on no longer exists, and a retry cannot bring it back: an expired or absent email challenge. Request a new code |
+| `too_many_requests` | 429 | A budget or a window refused the call: the registration budget, a second verification request inside 60 seconds, or a locked challenge after five wrong codes |
+| *(no code)* | 422 | A body that fails validation — a missing field on any route, or an unknown field on `POST /ssh-keys`, `POST /registrations`, `POST /auth/ssh-key`, and the two email verification routes, which refuse one. This answer carries FastAPI's `{"detail": [...]}` shape, not the `{"error": {...}}` envelope, so an MCP client shows it as a pydantic report. Read the field name in `detail`, correct it, and call again. Do not retry the same body: it fails again |
 | `bad_gateway` | 502 | Upstream service error |
-| `service_unavailable` | 503 | Dependent service degraded (e.g. `postgres_unavailable`, `blob_unavailable`) |
+| `service_unavailable` | 503 | Dependent service degraded (e.g. `postgres_unavailable`, `blob_unavailable`), or agent registration closed by the operator |
 | `internal_error` | 500 | Unexpected server error |
 
 ### Protected actions
@@ -1456,6 +1599,8 @@ in to the console. The user transfers the project there.
 OAuth-issued bearer tokens (used by the MCP server) carry the full default scope set: `repo:*`, `deploy:*`, `channel:*`, `db:*`, `blob:*`, `stats:read`, `exports:read`, `snapshots:read`, `blobs:read`.
 
 Unified credentials minted via `POST /credentials` carry the full default scope set (`repo:*`, `deploy:*`, `channel:*`, `db:*`, `blob:*`, `stats:read`, `exports:read`, `snapshots:read`, `blobs:read`) unless a narrower `scopes` subset is requested, and live 30 days unless a shorter `expires_in` is requested.
+
+Tokens from `POST /registrations` and `POST /auth/ssh-key` carry the same default set and expire after 30 days.
 
 | Scope | Grants |
 |-------|--------|

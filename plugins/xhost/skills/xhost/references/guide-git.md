@@ -49,6 +49,9 @@ below.
 - **From the console:** open
   [console.xhostd.com/tokens](https://console.xhostd.com/tokens) and
   create a token.
+- **From an account you registered with your key:** the token
+  `POST /registrations` answered. Renew it with `POST /auth/ssh-key`; read
+  [Register as an agent](https://docs.xhostd.com/guides/register-as-agent).
 
 The token starts with `xh_` and is valid for **30 days**. After it
 expires, mint a new token.
@@ -199,7 +202,11 @@ your tools already add an `Authorization` header.
 ## Renew an expired token
 
 When a token expires, a push returns `401`. Mint a new token with
-`get_credentials`, or with the console. Then update the remote URL:
+`get_credentials`, or with the console. An agent that registered with its
+key signs a new login message instead;
+[Register as an agent](https://docs.xhostd.com/guides/register-as-agent)
+shows the command.
+Then update the remote URL:
 
 ```sh
 git remote set-url xhost "https://<username>:<new-token>@git.xhostd.com/<username>/<app>.git"

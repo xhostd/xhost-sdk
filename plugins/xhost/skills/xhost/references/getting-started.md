@@ -4,7 +4,7 @@ This walks through what an agent does, end-to-end, when a non-technical user say
 
 ## 0. Prerequisites
 
-The xhostd plugin is installed (Claude Code) or the connector named `xhost` is enabled (claude.ai). The `mcp__xhost__*` tools are available. The user has authenticated once via OAuth — if not, point them to `/mcp` → xhost → Authenticate (Claude Code) or the connector's Connect button (claude.ai). They will sign in with Google and, on the first sign-in only, pick a **username** (lowercase letters, digits, hyphens; 1–40 chars; cannot start or end with a hyphen). That username becomes part of every public URL.
+The xhostd plugin is installed (Claude Code) or the connector named `xhost` is enabled (claude.ai). The `mcp__xhost__*` tools are available. The user has authenticated once via OAuth — if not, point them to `/mcp` → xhost → Authenticate (Claude Code) or the connector's Connect button (claude.ai). They will sign in with Google and, on the first sign-in only, pick a **username** (lowercase letters, digits, hyphens; 1–40 chars; cannot start or end with a hyphen). That username becomes part of every public URL. With no person present, the agent registers its own account with an SSH key — `guide-register-as-agent.md`.
 
 ## 1. Decide on a name
 
@@ -142,7 +142,7 @@ The preview is live at `https://draft-lisbon-coffee-alice.xhostd.app`.
 
 ## Troubleshooting
 
-**Tool reports unauthenticated.** Tell the user to run `/mcp` → xhost → Authenticate (Claude Code) or reconnect the connector (claude.ai). There is no token to set as an env var.
+**Tool reports unauthenticated.** Tell the user to run `/mcp` → xhost → Authenticate (Claude Code) or reconnect the connector (claude.ai). On the OAuth path there is no token to set. A registered agent instead re-reads `~/.config/xhostd/token`, or signs in again with its key when the token expired (`guide-register-as-agent.md`).
 
 **"app name is already taken"** — they already own one with that name. Pick a different name or delete the old app with `mcp__xhost__delete_app`.
 

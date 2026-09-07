@@ -9,7 +9,8 @@ and say "do this".
 
 If your agent has no connection to xhostd, start with
 [Getting Started](https://docs.xhostd.com/getting-started). Then come back
-here.
+here. An agent that works with no person at a browser opens its own account:
+[Register as an agent](https://docs.xhostd.com/guides/register-as-agent).
 
 [Push code with git](https://docs.xhostd.com/guides/git) tells you about the
 credential, the remote URL and the `git push` command.

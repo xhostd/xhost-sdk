@@ -15,14 +15,78 @@ xhostd is hosting designed for agents. You create an app, push its code to the g
 
 ## Authentication
 
-Tools are already authenticated via OAuth — the plugin (Claude Code) and the connector (claude.ai) both handle this. Just call the tools.
+There are two ways to hold an authenticated session. Pick the one that matches who is present.
 
-If a tool reports unauthenticated:
-- **Claude Code:** tell the user to run `/mcp`, select **xhost**, choose **Authenticate**. A browser opens, they sign in with Google (picking a username on first sign-in), approve, done.
-- **Codex:** refresh or reconnect the xhost plugin/MCP connection, then retry the first tool call. The browser-based Google OAuth flow should open automatically; no token is needed.
+**A. A person is present: OAuth.** The plugin (Claude Code) and the connector (claude.ai) authenticate through Google sign-in. Call the tools. If a tool reports unauthenticated:
+- **Claude Code:** tell the user to run `/mcp`, select **xhost**, and choose **Authenticate**. A browser opens, they sign in with Google (and pick a username on first sign-in), and approve.
+- **Codex:** refresh or reconnect the xhost plugin, then retry the first tool call. The browser-based Google sign-in opens on its own.
 - **claude.ai:** tell the user to reconnect the xhost connector in Settings → Connectors.
 
-There is no API token to mint, copy, paste, or export. Do not ask the user for one.
+Never ask a person for an API token on this path. The OAuth session carries one.
+
+**B. No person is present: register with an SSH key.** When nobody can sign in through a browser, you open the account yourself. The private key at `~/.ssh/xhost_ed25519` is the durable credential; the 30-day `xh_` token it mints is renewable without a person. The account starts on the `starter` plan: one channel, 128 MiB of memory, 128 MiB of object storage, no raw TCP. Full guide, with every command and every error: `references/guide-register-as-agent.md` (<https://docs.xhostd.com/guides/register-as-agent>). Run every command in B1–B7 in a subprocess, so no secret enters a tool call or the transcript.
+
+B1. **Make or reuse the key.** Use exactly this path; it is the same key `register_ssh_key` uses, so one key serves registration and every `git push`.
+   ```sh
+   mkdir -p ~/.ssh; [ -f ~/.ssh/xhost_ed25519 ] || ssh-keygen -t ed25519 -N "" -f ~/.ssh/xhost_ed25519
+   ```
+B2. **Sign the registration message.** The message is three lines: the word `xhostd-register`, the username (empty means the platform allocates one), and the Unix time. The namespace is `xhostd-register`.
+   ```sh
+   WORK=$(mktemp -d); TS=$(date +%s)
+   printf 'xhostd-register\n\n%s\n' "$TS" > "$WORK/msg"
+   ssh-keygen -Y sign -f ~/.ssh/xhost_ed25519 -n xhostd-register "$WORK/msg"
+   ```
+   To request a name, put it on the second line — `printf 'xhostd-register\n%s\n%s\n' "$NAME" "$TS"` — and send it as `username` in B3. A name is `agent` plus 5 to 35 lowercase letters or digits.
+B3. **Post the key, the time, and the signature.** The response holds the token, so it goes to a file, never to stdout.
+   ```sh
+   python3 - "$WORK" "$TS" <<'EOF' > "$WORK/body.json"
+   import json, pathlib, sys
+   work, ts = sys.argv[1], int(sys.argv[2])
+   print(json.dumps({
+       "public_key": (pathlib.Path.home() / ".ssh/xhost_ed25519.pub").read_text().strip(),
+       "timestamp": ts,
+       "signature": pathlib.Path(work, "msg.sig").read_text(),
+   }))
+   EOF
+   curl -sS https://api.xhostd.com/registrations -H 'Content-Type: application/json' \
+     --data @"$WORK/body.json" -o "$WORK/response.json" -w 'HTTP %{http_code}\n'
+   ```
+B4. **Store the token at `~/.config/xhostd/token` (mode 0600) and print the non-secret fields.**
+   ```sh
+   python3 - "$WORK/response.json" <<'EOF'
+   import json, os, pathlib, sys
+   r = json.load(open(sys.argv[1]))
+   if "token" not in r:
+       print(r); sys.exit(1)          # an error envelope holds no secret
+   d = pathlib.Path.home() / ".config/xhostd"; d.mkdir(parents=True, exist_ok=True); d.chmod(0o700)
+   fd = os.open(d / "token", os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+   os.fchmod(fd, 0o600)
+   os.write(fd, r["token"].encode()); os.close(fd)
+   print({k: r[k] for k in ("username", "user_id", "plan", "token_expires_at", "fingerprint_sha256", "git_ssh_host")})
+   EOF
+   rm -rf "$WORK"
+   ```
+   Read the errors as instructions: `409` "registered already" means this key has an account, so go to B6 and sign in; `429` means the daily budget is spent, so retry the next day; `503` means registration is closed; `400` names the field to fix (a timestamp more than 300 seconds off the server clock is the usual one).
+B5. **Use the token.** Either add the MCP server with the token as a header, or call the HTTP API directly. Write `$(cat ~/.config/xhostd/token)` in the command; never paste the value.
+   ```sh
+   claude mcp add --transport http xhost https://mcp.xhostd.com/mcp/ \
+     --header "Authorization: Bearer $(cat ~/.config/xhostd/token)"
+   ```
+   The tools appear after the client reconnects (`/mcp` → xhost → reconnect, or a new session). Without MCP, every route in `references/api-reference.md` takes the same header: `curl -sS https://api.xhostd.com/apps -H "Authorization: Bearer $(cat ~/.config/xhostd/token)"`. Git needs no token: the registration key is registered already, so push over SSH as in S4 of **Pushing code with git**, and skip `register_ssh_key` (it answers `409` for this key, which is correct).
+B6. **Renew the token when it expires (30 days).** Sign a login message — the word `xhostd-login`, the key's fingerprint, the Unix time — under the namespace `xhostd-login`, and post it to `POST /auth/ssh-key`. The fingerprint is the `SHA256:…` value `ssh-keygen -lf` prints, prefix included. The same B3 body builder and B4 writer apply; the response is `{token, token_expires_at, user_id, username}`.
+   ```sh
+   FP=$(ssh-keygen -lf ~/.ssh/xhost_ed25519.pub | awk '{print $2}')
+   WORK=$(mktemp -d); TS=$(date +%s)
+   printf 'xhostd-login\n%s\n%s\n' "$FP" "$TS" > "$WORK/msg"
+   ssh-keygen -Y sign -f ~/.ssh/xhost_ed25519 -n xhostd-login "$WORK/msg"
+   # then B3 with https://api.xhostd.com/auth/ssh-key, then B4
+   ```
+   After a renewal, re-add the MCP server: `claude mcp remove xhost`, then the B5 command. A `404` means the key is unknown or cannot sign in; register it with B2–B4.
+B7. **Verify an email to leave `starter`.** When a person gives you an address, call `mcp__xhost__request_email_verification` (`email`); the platform mails an 8-character code that expires in 15 minutes. Ask the person for the code and call `mcp__xhost__complete_email_verification` (`code`). Success sets the account's email, moves it to `basic`, and applies the new limits in the background. From then on, Google sign-in with that address opens the console for this account, where the person sees and revokes the registration key and its tokens. The same two calls exist as `POST /me/email-verifications` and `POST /me/email-verifications/complete` with the bearer header. Five wrong codes lock the challenge; request a new one after 60 seconds.
+
+**Upgrades.** No route lets an agent pay. When a task needs a paid tier, call `mcp__xhost__submit_feedback` with the upgrade request and tell the person that paid plans are bought in the console after the email is verified.
+
+**Rules for the token and the key.** The token file lives in `$HOME`, never in a repo, never in a transcript, never in an env file you might commit. Do not make a second key to clear a `409`. Do not put the token in a URL except the HTTPS git fallback (H3), which the SSH path makes unnecessary here.
 
 If a tool listed in this skill or in llms-full.txt is missing from your runtime tool list, the client cached an older tool set at connect time. llms-full.txt is the source of truth — tell the user to reconnect (Claude Code: `/mcp` → xhost → reconnect; claude.ai: Settings → Connectors → reconnect xhost) to pick up the current tools.
 
@@ -86,7 +150,7 @@ Both transports reach the same repo. `HEAD:master` on either one: xhostd binds p
 
 The same token is your **Postgres password** when external database access is enabled in the console: `postgresql://<username>:<token>@db.xhostd.com:5432/<db>?sslmode=require` (`<db>` = app name for `prod`, else `<channel>-<app>`).
 
-Rules: the token is short-lived; never commit it into the repo or write it into a file the user might check in. Re-mint by calling `get_credentials` again after expiry.
+Rules: the token is short-lived; never commit it into the repo or write it into a file the user might check in. Re-mint by calling `get_credentials` again after expiry, or, for a registered agent, sign in again with the key (B6).
 
 ## Runtime contract — what makes a deploy succeed
 
@@ -199,7 +263,7 @@ It's fire-and-forget: describe the friction in your own words, pass `app_name` w
 
 To read those answers, call **`mcp__xhost__list_feedback`** (optional `limit`, optional `cursor`). One call answers one page of the account's reports — the ones you filed and the ones the user filed in the console — newest first, each with `status` (`Received`, `Resolved` or `Closed`) and the team's answer thread oldest first. The answer also carries `next_cursor`. When `next_cursor` holds a value, older reports exist: call the tool again and pass that value as `cursor`. When `next_cursor` is null, you read the last report, so do not call the tool again. It is a poll, not a push: nothing tells you when the team answers, so call it when the user asks whether they replied.
 
-## All 52 tools
+## All 54 tools
 
 Apps:
 - `list_apps` — List Apps: all apps owned by the user, with channels.
@@ -261,6 +325,10 @@ SSH keys (git over SSH):
 - `list_ssh_keys` — List SSH Keys: the account's keys, newest first, metadata only (`id`, `label`, `algo`, `fingerprint`, `created_at`, `last_used_at`). A key itself is never returned.
 - `delete_ssh_key` — Delete SSH Key: by `key_id`. The delete is the whole revoke, so a push with that key fails at once.
 
+Account:
+- `request_email_verification` — Request Email Verification: mail an 8-character code to `email` (15-minute expiry); the first step that moves a `starter` account to `basic`. Answers a conflict when the account already has an email, and too-many-requests inside 60 s of the last request.
+- `complete_email_verification` — Complete Email Verification: submit the `code`; success sets the email, moves `starter` to `basic`, queues the limit apply, and opens console sign-in to the address. Five wrong codes lock the challenge.
+
 Activity:
 - `list_activity` — List Project Activity: recent events for an app, newest first.
 
@@ -291,6 +359,7 @@ Export (takeout):
 - `references/guide-access-and-security.md` — Access & security: Membership, credentials, protected agent actions, and app sign-in.
 - `references/guide-troubleshooting.md` — Troubleshooting: Find build, runtime, traffic, and resource evidence.
 - `references/guide-git.md` — Push code with git: the unified credential, the remote URL with the token in the password field, and the `HEAD:master` refspec.
+- `references/guide-register-as-agent.md` — Register as an agent: an SSH key, a signed message, `POST /registrations`, the 30-day token, `POST /auth/ssh-key` to renew, and an email to move to `basic`.
 - `references/guide-index.md` — Index of the worked deployment recipes: what each one deploys, and how a recipe is structured.
 - `references/guide-recipes-static.md` — Static site: an HTML/CSS/JS repo served as-is by nginx, no build step and no process of your own.
 - `references/guide-recipes-app-node.md` — Node.js app on the `app` template: Express, `install.sh` at build and `launch.sh` at boot.

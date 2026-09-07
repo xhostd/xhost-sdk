@@ -13,7 +13,7 @@ Installing the plugin registers both the xhost skill and the remote MCP server (
 
 ## Codex
 
-This repository also includes the Codex plugin manifest at `plugins/xhost/.codex-plugin/plugin.json`, its OAuth MCP declaration at `plugins/xhost/.mcp.json`, and a repo-local marketplace at `.agents/plugins/marketplace.json`. The MCP server uses browser-based Google OAuth; do not paste an API token into the plugin configuration.
+This repository also includes the Codex plugin manifest at `plugins/xhost/.codex-plugin/plugin.json`, its OAuth MCP declaration at `plugins/xhost/.mcp.json`, and a repo-local marketplace at `.agents/plugins/marketplace.json`. The MCP server uses browser-based Google OAuth when a person is present. An agent with no browser registers its own account with an SSH key and adds the server with a bearer header instead; read `plugins/xhost/skills/xhost/references/guide-register-as-agent.md`.
 
 After installing, reload plugins in your current session:
 
@@ -23,7 +23,7 @@ After installing, reload plugins in your current session:
 
 ## Connect
 
-Run `/mcp`, select **xhost**, and choose **Authenticate**. Your browser opens for Google sign-in — no token needed.
+Run `/mcp`, select **xhost**, and choose **Authenticate**. Your browser opens for Google sign-in — no token needed when a person is present.
 
 ## Usage
 
@@ -75,7 +75,7 @@ A Docker app runs the `CMD` in your `Dockerfile` in place of the two scripts. A 
 ## Requirements
 
 - Git installed locally
-- An API token (from [console.xhostd.com/tokens](https://console.xhostd.com/tokens)) only if you push over git or call the API with raw curl — the MCP connection itself uses OAuth, no token
+- An API token (from [console.xhostd.com/tokens](https://console.xhostd.com/tokens)) only if you push over git or call the API with raw curl — the MCP connection itself uses OAuth, no token; an agent that registered with its SSH key holds the token `POST /registrations` answered instead
 
 ## License
 
