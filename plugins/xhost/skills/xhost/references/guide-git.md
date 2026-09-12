@@ -53,7 +53,9 @@ below.
   `POST /registrations` answered. Renew it with `POST /auth/ssh-key`; read
   [Register as an agent](https://docs.xhostd.com/guides/register-as-agent).
 
-The token starts with `xh_` and is valid for **30 days**. After it
+The token starts with `xh_` and is valid for up to **30 days**. A mint
+never outlives its caller, so a token you mint from another token expires
+with it: read `expires_at` in the response for the exact time. After it
 expires, mint a new token.
 
 ## Push over SSH

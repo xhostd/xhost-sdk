@@ -4,7 +4,7 @@ This is the underlying HTTP API that the MCP tools wrap. For normal agent usage,
 
 Base URL: `https://api.xhostd.com`
 
-All authenticated endpoints require the header: `Authorization: Bearer <token>` where `<token>` is either the user's OAuth-issued bearer (carried by the MCP server) or a unified credential minted via the `get_credentials` MCP tool (git + Postgres + object storage + downloads + platform API, full default scopes, 30 days), or the 30-day token `POST /registrations` or `POST /auth/ssh-key` answers an agent that registered with its SSH key. Pass `scopes` and `expires_in` to the `get_credentials` tool for a narrower, shorter-lived credential.
+All authenticated endpoints require the header: `Authorization: Bearer <token>` where `<token>` is either the user's OAuth-issued bearer (carried by the MCP server) or a unified credential minted via the `get_credentials` MCP tool (git + Postgres + object storage + downloads + platform API, full default scopes, up to 30 days), or the 30-day token `POST /registrations` or `POST /auth/ssh-key` answers an agent that registered with its SSH key. Pass `scopes` and `expires_in` to the `get_credentials` tool for a narrower, shorter-lived credential.
 
 All error responses use the envelope: `{"error": {"code": "<code>", "message": "<message>"}}`
 
@@ -1043,7 +1043,7 @@ Poll an export's progress. Statuses: `queued`, `running`, `ready`, `failed`.
 
 ## POST /exports/{export_id}/download-token
 
-Mint a short-lived `exports:read` token for a ready, owned export. A unified credential already reaches the download routes, because `exports:read` is default-granted; use this route when you want a single-purpose token instead — for example one you paste into a `curl` command, where a full credential would expose your git and Postgres passwords.
+Mint a short-lived `exports:read` token for a ready, owned export. Your calling token must carry `exports:read` itself, because a mint never grants more scope, and never a longer life, than the caller holds. The token expires with the export, or with your calling token if that comes first. A unified credential already reaches the download routes, because `exports:read` is default-granted; use this route when you want a single-purpose token instead — for example one you paste into a `curl` command, where a full credential would expose your git and Postgres passwords.
 
 **Response (200):**
 ```json
@@ -1059,12 +1059,13 @@ Mint a short-lived `exports:read` token for a ready, owned export. A unified cre
 
 **Errors:**
 - `not_found` (404) — export not found, not owned by caller, or not ready
+- `scope_denied` (403) — your calling token does not carry `exports:read`
 
 ---
 
 ## POST /credentials
 
-Mint a unified credential for the authenticated user. The returned token serves as your git password, Postgres password, and platform API bearer, and carries the full default scope set (`repo:*`, `deploy:*`, `channel:*`, `db:*`, `blob:*`, `stats:read`, `exports:read`, `snapshots:read`, `blobs:read`). It lives 30 days unless you ask for less.
+Mint a unified credential for the authenticated user. The returned token serves as your git password, Postgres password, and platform API bearer, and carries the default scopes your calling token holds — all nine of `repo:*`, `deploy:*`, `channel:*`, `db:*`, `blob:*`, `stats:read`, `exports:read`, `snapshots:read` and `blobs:read` for a general credential. A mint never grants more scope, and never a longer life, than the caller holds, so a narrowed token renews itself here rather than widening, and a short-lived one cannot outlive itself. It lives 30 days, or until your calling token expires if that comes first, and less when you ask for less.
 
 **Request body (optional):**
 ```json
@@ -1073,7 +1074,7 @@ Mint a unified credential for the authenticated user. The returned token serves 
   "expires_in": 3600
 }
 ```
-`scopes`, when supplied, must be a non-empty subset of the default set and mints a least-privilege credential. `expires_in` is a lifetime in seconds, at most `2592000` (30 days); omit it for 30 days. The two compose, so a credential for one job can be both least-privilege and short-lived — `{"scopes": ["repo:*"], "expires_in": 3600}` is an hour of git access and nothing else. Prefer that over a full-scope credential whenever you know the job.
+`scopes`, when supplied, must be a non-empty subset of the default scopes your calling token holds, and mints a least-privilege credential. `expires_in` is a lifetime in seconds, at most `2592000` (30 days) and at most what your calling token has left; omit it for the shorter of those two. The two compose, so a credential for one job can be both least-privilege and short-lived — `{"scopes": ["repo:*"], "expires_in": 3600}` is an hour of git access and nothing else. Prefer that over a full-scope credential whenever you know the job.
 
 **Response (200):**
 ```json
@@ -1086,17 +1087,17 @@ Mint a unified credential for the authenticated user. The returned token serves 
 ```
 
 **Errors:**
-- `bad_request` (400) — `scopes` empty, unknown, or outside the default set; `expires_in` not positive or above the ceiling
+- `bad_request` (400) — `scopes` empty, unknown, or naming a scope your calling token does not hold; `expires_in` not positive or above the ceiling. The message names the scopes you can ask for
 
 **SSH is the first git transport wherever a shell is available, and it needs no token** — see `POST /ssh-keys` below. This token stays required for the HTTPS push, for Postgres and for the platform API.
 
-To push over HTTPS: set the remote with the token in the **password** field — `https://<username>:<token>@git.xhostd.com/<username>/<app>.git` (the per-app `repo_url` from `GET /apps/{app_id}` already has the right path), then `git push`. Any username works; the password is what git.xhostd.com checks. (git.xhostd.com also accepts the token via `Authorization: Bearer` — e.g. `git config http.extraHeader "Authorization: Bearer <token>"` — but native `git` uses the Basic-password path above.) The token is valid for 30 days; re-mint after expiry.
+To push over HTTPS: set the remote with the token in the **password** field — `https://<username>:<token>@git.xhostd.com/<username>/<app>.git` (the per-app `repo_url` from `GET /apps/{app_id}` already has the right path), then `git push`. Any username works; the password is what git.xhostd.com checks. (git.xhostd.com also accepts the token via `Authorization: Bearer` — e.g. `git config http.extraHeader "Authorization: Bearer <token>"` — but native `git` uses the Basic-password path above.) The token is valid for up to 30 days; read `expires_at` for the exact time and re-mint after expiry.
 
 ---
 
 ## POST /ssh-keys
 
-Register one OpenSSH public key on the authenticated user's account, for git over SSH. A key belongs to the account, not to one app. Send the PUBLIC half only — the content of a `.pub` file; the platform stores no private key.
+Register one OpenSSH public key on the authenticated user's account, for git over SSH. A key belongs to the account, not to one app. Send the PUBLIC half only — the content of a `.pub` file; the platform stores no private key. A key reaches every repository on the account, so your calling token must carry `repo:*`; `api_login` asks for all nine default scopes, because that is what the key goes on to mint.
 
 **SSH is the first git transport wherever a shell is available.** The private half never enters a tool call, and one registration covers every app on the machine. Reuse `~/.ssh/xhost_ed25519` if it exists; otherwise make the keypair at exactly that path — never in the project directory, and never with a per-project, per-app or per-tool suffix, which would only mint a second key on the account. HTTPS with the token in the remote URL is the fallback: take it where the network blocks outbound port 22, or after an SSH push fails.
 
@@ -1132,6 +1133,7 @@ Then push: `git remote add xhost-ssh "git@git.xhostd.com:<username>/<app>.git"` 
 
 **Errors:**
 - `bad_request` (400) — the line is no valid OpenSSH public key, or the label is longer than 64 characters
+- `scope_denied` (403) — your calling token does not carry `repo:*`, or asks for `api_login` without all nine default scopes
 - `conflict` (409) — the platform holds that fingerprint already; a fingerprint is unique platform-wide. For the key at `~/.ssh/xhost_ed25519` this only means an earlier session registered it, so the key works — push with it. Never mint a second keypair to clear a 409.
 
 ---
@@ -1174,7 +1176,7 @@ Delete one SSH key the caller owns. The delete is the whole revoke, so a push wi
 
 ## POST /registrations
 
-Open a `starter` account for the holder of an `ssh-ed25519` key, with no person and no browser. **No bearer**: the signed message is the proof. The response holds a 30-day token with the default scopes, and the key is registered on the account with `api_login`, so it renews the token through `POST /auth/ssh-key` and pushes over SSH with no further call. Full recipe: `guide-register-as-agent.md`.
+Open a `starter` account for the holder of an `ssh-ed25519` key, with no person and no browser. **No bearer**: the signed message is the proof. The response holds a 30-day token with the default scopes plus `email:bind`, the scope that binds an address to the account, and the key is registered on the account with `api_login`, so it renews the token through `POST /auth/ssh-key` and pushes over SSH with no further call. Full recipe: `guide-register-as-agent.md`.
 
 **Request body:**
 ```json
@@ -1230,7 +1232,7 @@ xhostd-register\n<username or empty>\n<timestamp>\n
 
 ## POST /auth/ssh-key
 
-Mint a fresh 30-day default-scope token for a key registered with `api_login`. **No bearer**: the signed message is the proof. The registration key qualifies; a key `POST /ssh-keys` stored with `api_login: true` qualifies too.
+Mint a fresh 30-day token for a key registered with `api_login`, carrying the default scopes plus `email:bind`. **No bearer**: the signed message is the proof. This is also the one request that answers a token able to bind an address, so a caller that reads 403 from `POST /me/email-verifications` comes here. The registration key qualifies; a key `POST /ssh-keys` stored with `api_login: true` qualifies too.
 
 **Request body:** `public_key`, `timestamp`, `signature`, as for `POST /registrations`; no other field (**422** otherwise).
 
@@ -1260,7 +1262,7 @@ An account holds at most 20 tokens from this route. After a renewal, remove and 
 
 ## POST /me/email-verifications
 
-Start one email challenge for the caller's account. Bearer required, no scope. The platform mails an 8-character code (lowercase letters and digits without `0`, `1`, `i`, `l`, `o`) that expires in 15 minutes. The first of the two steps that move a `starter` account to `basic`. MCP: `request_email_verification(email)`.
+Start one email challenge for the caller's account. Bearer required, scope `email:bind`. Only `POST /registrations` and `POST /auth/ssh-key` grant that scope, because the address becomes the account's sign-in email; a credential from `POST /credentials` or `POST /tokens` reads 403. The platform mails an 8-character code (lowercase letters and digits without `0`, `1`, `i`, `l`, `o`) that expires in 15 minutes. The first of the two steps that move a `starter` account to `basic`. MCP: `request_email_verification(email)`.
 
 **Request body:**
 ```json
@@ -1276,6 +1278,7 @@ The response repeats no address.
 
 **Errors:**
 - `bad_request` (400) — `enter a valid email address`
+- `scope_denied` (403) — the token holds no `email:bind`; sign the login message with the account's SSH key and call `POST /auth/ssh-key`
 - `conflict` (409) — `this account already has a verified email`
 - *(no code)* (422) — an unknown or missing field
 - `too_many_requests` (429) — `a verification code was sent less than 60 seconds ago; wait before you ask again`
@@ -1284,7 +1287,7 @@ The response repeats no address.
 
 ## POST /me/email-verifications/complete
 
-Prove the code. Bearer required, no scope. Success writes the address as the account's sign-in email, moves a `starter` account to `basic`, and queues the plan apply that raises the limits. From then on Google sign-in with that address opens the console for this account, where a person sees and revokes the registration key and the tokens. MCP: `complete_email_verification(code)`.
+Prove the code. Bearer required, no scope: the request carries a code alone, and it binds the address the start route chose. Success writes the address as the account's sign-in email, moves a `starter` account to `basic`, and queues the plan apply that raises the limits. From then on Google sign-in with that address opens the console for this account, where a person sees and revokes the registration key and the tokens. MCP: `complete_email_verification(code)`.
 
 **Request body:**
 ```json
@@ -1315,11 +1318,13 @@ Submit free-text feedback to the xhostd team about platform friction (many itera
 ```json
 {
   "message": "Deploy logs don't stream — had to poll get_deploy_log repeatedly.",
+  "subject": "Deploy logs don't stream",
   "app_id": "uuid"
 }
 ```
 
 - `message` (string, required) — The feedback text. Must be non-empty after trimming; max 4000 characters.
+- `subject` (string, required) — A short title for the report; max 120 characters. It is the line the team reads first in the queue. An omitted, empty or whitespace-only value is refused.
 - `app_id` (string, optional) — Id of the app being worked on, for context. An unknown or inaccessible id is silently dropped (stored as null); the feedback still lands.
 
 **Response (200):**
@@ -1331,7 +1336,8 @@ Submit free-text feedback to the xhostd team about platform friction (many itera
 ```
 
 **Errors:**
-- `bad_request` (400) — empty message, message longer than 4000 characters, or the account reached its report limit (1000 by default; an operator raises or lowers it per account, and the message names the limit that applies)
+- `bad_request` (400) — empty message, message longer than 4000 characters, subject longer than 120 characters, or the account reached its report limit (1000 by default; an operator raises or lowers it per account, and the message names the limit that applies)
+- `bad_request` (400) — no subject. The message reads "a feedback report needs a subject." Send a `subject`.
 
 ---
 
@@ -1349,6 +1355,8 @@ List the authenticated user's feedback reports, newest first, each with the xhos
   "reports": [
     {
       "id": "uuid",
+      "subject": "Deploy logs don't stream",
+      "title": "Deploy logs don't stream",
       "message": "Deploy logs don't stream.",
       "status": "Resolved",
       "source": "agent",
@@ -1359,6 +1367,7 @@ List the authenticated user's feedback reports, newest first, each with the xhos
         {
           "body": "Status changed to Resolved.\n\nStreaming logs shipped today.",
           "created_at": "2026-01-05T09:30:00+00:00",
+          "author": "team",
           "status": "Resolved"
         }
       ]
@@ -1368,10 +1377,12 @@ List the authenticated user's feedback reports, newest first, each with the xhos
 }
 ```
 
+- `subject` — the title the reporter wrote. It is null only on a report filed before the subject became required.
+- `title` — the line that names the report: its `subject`, or the opening of its `message` when it has no subject. Never null and never empty, so render it without a fallback.
 - `status` — one of `Received` (not acted on yet), `Resolved` (the team did the work), `Closed` (the team will not act on it).
 - `source` — `agent` or `console`, the surface the report came from.
 - `app_name` — null when the report carries no app context.
-- `messages` — the team's answers, oldest first. A message carries a `status` only when it records a status change. Internal team notes are never listed.
+- `messages` — the team's answers and your own replies, oldest first. Each carries `author`: `team` on the xhostd team's answer, and `you` on a reply the account wrote in the console. A message carries a `status` only when it records a status change. Internal team notes are never listed.
 - `next_cursor` — an opaque value. Pass it as `cursor` to read the next page; `null` when the account has no older report. Build no cursor of your own.
 
 ---
@@ -1598,9 +1609,11 @@ in to the console. The user transfers the project there.
 
 OAuth-issued bearer tokens (used by the MCP server) carry the full default scope set: `repo:*`, `deploy:*`, `channel:*`, `db:*`, `blob:*`, `stats:read`, `exports:read`, `snapshots:read`, `blobs:read`.
 
-Unified credentials minted via `POST /credentials` carry the full default scope set (`repo:*`, `deploy:*`, `channel:*`, `db:*`, `blob:*`, `stats:read`, `exports:read`, `snapshots:read`, `blobs:read`) unless a narrower `scopes` subset is requested, and live 30 days unless a shorter `expires_in` is requested.
+Unified credentials minted via `POST /credentials` carry the default scopes your calling token holds — all nine of `repo:*`, `deploy:*`, `channel:*`, `db:*`, `blob:*`, `stats:read`, `exports:read`, `snapshots:read` and `blobs:read` for a general credential — unless a narrower `scopes` subset is requested, and live 30 days, or until your calling token expires if that comes first, and less when a shorter `expires_in` is requested.
 
 Tokens from `POST /registrations` and `POST /auth/ssh-key` carry the same default set and expire after 30 days.
+
+**A mint never grants more scope, and never a longer life, than the caller holds.** A narrowed credential can renew itself, and cannot widen itself back. A short-lived one can renew itself, and cannot outlive itself: every token you mint expires with the token you minted it from, or earlier. `POST /tokens` grants a fixed nine scopes, so a token short of that set answers `scope_denied` (403) there; call `POST /credentials` instead. Each download-token route needs the one scope it mints, so a narrow download token cannot rotate into another artifact. `POST /ssh-keys` needs `repo:*`, the access a key carries by construction, and `api_login` needs all nine.
 
 | Scope | Grants |
 |-------|--------|

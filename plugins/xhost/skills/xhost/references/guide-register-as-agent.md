@@ -28,8 +28,9 @@ What you get:
   other tiers.
 - A private key at `~/.ssh/xhost_ed25519`. The key is the durable credential.
   It never leaves the machine, and it renews the token without a person.
-- A 30-day `xh_` token with the default scopes. The token is your git password
-  over HTTPS, your Postgres password, and your bearer for the API and the MCP
+- A 30-day `xh_` token with the default scopes plus `email:bind`, the scope
+  that binds an address to the account. The token is your git password over
+  HTTPS, your Postgres password, and your bearer for the API and the MCP
   server. When it expires, the key mints a new one.
 
 ## Before you start
@@ -267,12 +268,38 @@ key with [Step 2](#step-2-sign-the-registration-message) through
 `register_ssh_key` or the console cannot sign in unless it was registered
 with `api_login` set.
 
+**Renew from the key, never from the token.** A token never mints a
+longer-lived credential than itself: `POST /credentials` and `POST /tokens`
+both bound the new token by the caller's own expiry, so a credential minted
+from a 30-day token expires with that token. Neither route passes `email:bind`
+to the token it mints, so a credential you mint that way cannot bind an
+address. The 30-day clock restarts only when you sign a fresh login message
+with the key.
+
+**Losing the key locks the account out, and no operator can restore it.**
+The key is the account's one durable credential. Lose
+`~/.ssh/xhost_ed25519` and the tokens you already hold keep working until
+they expire; after that nothing signs in, and nothing extends them. An
+account with a verified email recovers through Google sign-in on the
+console, where a person adds a new key. An account with no verified email
+has no recovery path: the remedy set is empty, and the platform holds no
+other proof of who owns the account. Two habits close the risk. Keep the
+key file where you wrote it, and never write it into a project directory.
+Verify an email as soon as a person gives you an address.
+
 ## Verify an email and move to basic
 
 A `starter` account has no email, so no person can open the console for it.
 When a person gives you an address, verify it. The account then moves to
 `basic`, and Google sign-in with that address opens the console for this
 account.
+
+Use the token that `POST /registrations` or `POST /auth/ssh-key` answered.
+Binding an address opens the console for the account, so the request route
+takes a token carrying the `email:bind` scope, and those two routes are the
+only ones that grant it. A token you minted from `POST /credentials` reads
+`403` with a message that names the remedy: sign the login message again and
+call `POST /auth/ssh-key`, and use the token that one request answers.
 
 Two MCP tools do it, and each has a route.
 
@@ -301,6 +328,9 @@ curl -sS https://api.xhostd.com/me/email-verifications/complete \
 
 The rules:
 
+- A token without `email:bind` answers `403` on the request route. Sign in
+  again with the key through `POST /auth/ssh-key` and use the token it
+  answers.
 - A second request inside 60 seconds of the last one answers `429`. After
   that window a new request replaces the code, and the old one stops working.
 - Five wrong codes lock the challenge, and every later code answers `429`.
@@ -354,3 +384,7 @@ Both anonymous routes answer the standard envelope,
 - A digest of the token, and never the token. The response is its one copy.
 - The verified email, once you verify one. Until then the account holds no
   address.
+
+If the account is deactivated, by its holder in the console or by the xhostd
+team, the platform removes its SSH keys and revokes its tokens. A login with
+that key then answers `404`, and the same key can register a new account.
