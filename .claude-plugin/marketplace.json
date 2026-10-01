@@ -9,9 +9,10 @@
       "name": "xhost",
       "source": "./plugins/xhost",
       "description": "Deploy applications, sites, and services with xhostd. Push code, get HTTPS URLs.",
-      "version": "0.59.1",
+      "version": "0.59.2",
       "author": {
-        "name": "Yair Lifshitz"
+        "name": "xhostd.com",
+        "url": "https://xhostd.com"
       }
     }
   ]
