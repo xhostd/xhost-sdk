@@ -67,7 +67,7 @@ In Codex, describe the task normally or mention the xhostd skill; slash-command 
 
 1. You push code to xhostd's git server
 2. You trigger a deploy (explicitly, via `/xhostd` or the API)
-3. xhostd runs your `install.sh` (install the dependencies) then `launch.sh` (start the app on `$XHOST_HTTP_PORT`)
+3. xhostd runs your `install.sh` (install the dependencies) then `launch.sh` (start the app on `$XHOSTD_HTTP_PORT`)
 4. Your app is live over HTTPS with a wildcard cert
 
 A Docker app runs the `CMD` in your `Dockerfile` in place of the two scripts. A static site needs no script, because nginx serves the committed files.

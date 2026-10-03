@@ -269,6 +269,19 @@ fallback is yours" in
 [the Docker recipe](https://docs.xhostd.com/guides/recipes-docker) shows the
 fallback.
 
+### You expected compressed responses
+
+The `static` template serves your files uncompressed, and you cannot change
+that. It mounts your repo read-only into stock nginx, which ships with `gzip`
+switched off, and the template gives you no place to put an nginx config. The
+platform does not compress the responses for you either.
+
+For a page of text this costs little. If your site ships a large CSS or
+JavaScript bundle, where compression saves the most, move it to the `docker`
+template and run a server you configure. See
+[Docker recipe: your own Dockerfile](https://docs.xhostd.com/guides/recipes-docker).
+Keeping the bundle small helps more than compression does, so try that first.
+
 ### You expected a build step
 
 There is none. The `static` template copies nothing, runs nothing and compiles

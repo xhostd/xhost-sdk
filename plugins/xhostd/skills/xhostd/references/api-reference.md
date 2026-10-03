@@ -71,7 +71,7 @@ Create a new app. Provisions a git repository and a `prod` channel automatically
 ```
 
 - `name` (string, required) — Must be a valid DNS label and must not use a reserved prefix (see Hostname Rules)
-- `template` (string, optional, default `"static"`) — Runtime template. Valid values: `"static"` (nginx static file serving), `"app"` (user-provided `install.sh` + `launch.sh`), and `"docker"`. The `app` template runs inside an `xhost-runtime` image with Node 22, Python 3.13, and build tools pre-installed. The user provides `install.sh` (optional, installs dependencies — runs at **build** time as root) and `launch.sh` (required, starts the app on `$XHOST_HTTP_PORT` — runs at boot as the non-root `app` user, whose writable paths are `/app`, `$HOME`, `/tmp`). The `docker` template builds the `Dockerfile` at the repo root on every deploy and runs the image with its own `ENTRYPOINT`/`CMD`. Both non-`static` templates pass the health check on **either** of two signals, whichever arrives first: listen on `$XHOST_HTTP_PORT` (injected; `$PORT` is still injected at the same value, so existing apps keep working, but it is deprecated and will be removed — use `$XHOST_HTTP_PORT` in new code) and answer `GET /` with a 2xx, **or** create the file named by `$XHOST_READY_FILE` (also injected — a per-deploy path directly under `/tmp`, so no `mkdir` and no shell are needed). The second signal exists so a channel with no HTTP surface — a queue consumer, cron daemon or stream processor — needs no dummy listener; create it once the app is actually running, not at the top of the start command. Such a channel keeps its hostname and route, and that URL returns 502, which is expected. Env vars are injected at run time only — never as build args, so secrets are unavailable during the build and must never be baked into the image. Charged image size (total minus warm-base layers) is capped per plan: basic 512 MiB / builder 2 GiB / indie 4 GiB / pro 12 GiB (the same caps apply to the `app` template). Match every `FROM` to a warm base image — including a build-only stage in a multi-stage build, since every stage that names one starts with no pull: `node:22-slim`, `node:24-slim`, `node:26-slim`, `python:3.11-slim`, `python:3.12-slim`, `python:3.13-slim`, `python:3.14-slim`, `debian:trixie-slim`. The final stage's warm-base layers are also exempt from the charged size. Docker deploys stream `[build] ...` lines (queue position, build duration, image size vs cap) into the deploy log.
+- `template` (string, optional, default `"static"`) — Runtime template. Valid values: `"static"` (nginx static file serving), `"app"` (user-provided `install.sh` + `launch.sh`), and `"docker"`. The `app` template runs inside an `xhost-runtime` image with Node 22, Python 3.13, and build tools pre-installed. The user provides `install.sh` (optional, installs dependencies — runs at **build** time as root) and `launch.sh` (required, starts the app on `$XHOSTD_HTTP_PORT` — runs at boot as the non-root `app` user, whose writable paths are `/app`, `$HOME`, `/tmp`). The `docker` template builds the `Dockerfile` at the repo root on every deploy and runs the image with its own `ENTRYPOINT`/`CMD`. Both non-`static` templates pass the health check on **either** of two signals, whichever arrives first: listen on `$XHOSTD_HTTP_PORT` (injected; `$PORT` is still injected at the same value, so existing apps keep working, but it is deprecated and will be removed — use `$XHOSTD_HTTP_PORT` in new code) and answer `GET /` with a 2xx, **or** create the file named by `$XHOSTD_READY_FILE` (also injected — a per-deploy path directly under `/tmp`, so no `mkdir` and no shell are needed). The second signal exists so a channel with no HTTP surface — a queue consumer, cron daemon or stream processor — needs no dummy listener; create it once the app is actually running, not at the top of the start command. Such a channel keeps its hostname and route, and that URL returns 502, which is expected. Env vars are injected at run time only — never as build args, so secrets are unavailable during the build and must never be baked into the image. Charged image size (total minus warm-base layers) follows the current account entitlement; plugin workflows read the current cap from `get_account_overview`. Match every `FROM` to a warm base image — including a build-only stage in a multi-stage build, since every stage that names one starts with no pull: `node:22-slim`, `node:24-slim`, `node:26-slim`, `python:3.11-slim`, `python:3.12-slim`, `python:3.13-slim`, `python:3.14-slim`, `debian:trixie-slim`. The final stage's warm-base layers are also exempt from the charged size. Docker deploys stream `[build] ...` lines (queue position, build duration, image size vs cap) into the deploy log.
 
 **Response (200):**
 ```json
@@ -531,7 +531,7 @@ Set (upsert) an environment variable or secret on an app.
 }
 ```
 
-- `key` (string, required) — Must match `^[A-Z_][A-Z0-9_]*$`. Reserved keys (system-injected) are rejected: `XHOST_USER`, `XHOST_SHA`, `XHOST_HTTP_PORT`, `PORT`, `XHOST_FORWARD_PORT`, `XHOST_READY_FILE`, `DATABASE_URL`, `DATABASE_URL_READONLY`, `DATABASE_HOST`, `DATABASE_PASSWORD`, `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_REGION`.
+- `key` (string, required) — Must match `^[A-Z_][A-Z0-9_]*$`. Reserved keys (system-injected) are rejected: `XHOSTD_USER`, `XHOSTD_SHA`, `XHOSTD_HTTP_PORT`, `XHOSTD_FORWARD_PORT`, `XHOSTD_READY_FILE`, `XHOST_USER`, `XHOST_SHA`, `XHOST_HTTP_PORT`, `PORT`, `XHOST_FORWARD_PORT`, `XHOST_READY_FILE`, `DATABASE_URL`, `DATABASE_URL_READONLY`, `DATABASE_URL_DIRECT`, `DATABASE_HOST`, `DATABASE_PASSWORD`, `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_REGION`. Every other key that starts with `XHOSTD_` is reserved too.
 - `value` (string, required) — The value to set (stored encrypted). Capped at 16 KiB of UTF-8, per value.
 - `kind` (string, optional) — `env` (plain variable) or `secret`. Omitted, an existing key keeps its kind and a new key defaults to `env`. Secret values are omitted from list responses (metadata only); the single reveal path is `GET /apps/{app_id}/env/{key}/value` (the web console's reveal uses the same endpoint), and each reveal is audit-logged.
 - `channel_id` (string, optional) — Omit for an app-level default; set to a channel id for a per-channel override. At deploy time the channel override wins over the app default, and system-injected keys win over both.
@@ -638,7 +638,7 @@ Return the env snapshot recorded when a deploy started — what the app actually
     {"key": "MY_VAR", "kind": "env", "source": "app", "value": "my-value"},
     {"key": "API_TOKEN", "kind": "secret", "source": "channel", "value": null}
   ],
-  "system_keys": ["DATABASE_URL", "S3_BUCKET", "XHOST_SHA", "XHOST_USER"]
+  "system_keys": ["DATABASE_URL", "S3_BUCKET", "XHOSTD_SHA", "XHOSTD_USER", "XHOST_SHA", "XHOST_USER"]
 }
 ```
 
@@ -652,7 +652,7 @@ Return the env snapshot recorded when a deploy started — what the app actually
 
 ## GET /apps/{app_id}/channels/{channel_id}/postgres/snapshots
 
-List a channel's pre-deploy Postgres snapshots, newest first. A snapshot is taken automatically before every non-static deploy (unless the app's env sets `XHOST_DEPLOY_SKIP_DB_SNAPSHOT=1`). xhostd keeps the newest 1 on `basic` and the newest 3 on every paid plan, and it ages none of them out.
+List a channel's pre-deploy Postgres snapshots, newest first. A snapshot is taken automatically before every non-static deploy. Retention follows the current account entitlement; plugin workflows read the current count and retention window from `get_account_overview`.
 
 **Request body:** None
 
@@ -684,6 +684,8 @@ still reach the row, false once it cannot, and null while that is unknown.
 
 Roll the channel's database back to a prior snapshot. A failed restore loses nothing — the channel's data is left untouched. Each restore is audit-logged.
 
+**Temporarily unavailable.** Every call answers 503 `restore_unavailable` and changes nothing. Do not retry. Tell the user to contact support for help with a restore.
+
 **Request body:**
 ```json
 {
@@ -714,10 +716,11 @@ Roll the channel's database back to a prior snapshot. A failed restore loses not
 
 **Errors:**
 - `bad_request` (400) — `invalid_confirmation` (`db_name` mismatch)
-- `permission_denied` (403) — `prod_restore_blocked`: restoring the `prod` channel requires the app env `XHOST_ALLOW_PROD_RESTORE=1`
+- `protected_action` (403) — restoring the `prod` channel is a protected action: an agent credential gets 403 `protected_action` until the app owner turns agent access on in the console
 - `not_found` (404) — snapshot not found, or its file is missing
 - `conflict` (409) — `channel_busy` (a deploy is queued/running), or the account is mid-move
 - `service_unavailable` (503) — `postgres_unavailable`
+- `restore_unavailable` (503) — every call, while database restore is temporarily unavailable
 
 ---
 
@@ -858,7 +861,7 @@ Detach a custom domain. Removes the routing and stops certificate renewals; the 
 
 Give a channel a public `host:port` that carries raw TCP into its container. Idempotent per channel: a channel that already has an endpoint comes back **200** with the same `host`/`port` and its `allow_cidrs` replaced by the submitted list; a fresh allocation is **201**. The address is stable for the life of the exposure, so it is safe to hand out.
 
-Inside the container the process must listen on `0.0.0.0` at the port in `$XHOST_FORWARD_PORT` (a fixed platform-wide port injected into every non-`static` container). xhostd pumps the bytes through unmodified — no TLS is added and nothing is authenticated. Requires the app's **admin** role: a member gets `not_found`, never `permission_denied`, so a member cannot tell "this channel has no endpoint" from "I may not manage it". No redeploy is needed either way.
+Inside the container the process must listen on `0.0.0.0` at the port in `$XHOSTD_FORWARD_PORT` (a fixed platform-wide port injected into every non-`static` container). xhostd pumps the bytes through unmodified — no TLS is added and nothing is authenticated. Requires the app's **admin** role: a member gets `not_found`, never `permission_denied`, so a member cannot tell "this channel has no endpoint" from "I may not manage it". No redeploy is needed either way.
 
 **Required scope:** `channel:*`
 
@@ -884,11 +887,11 @@ Inside the container the process must listen on `0.0.0.0` at the port in `$XHOST
 }
 ```
 
-- `active` — Whether the endpoint is actually carrying traffic. The row existing is not enough: `false` means the project's port-forwarding toggle is off or the owner's plan no longer includes port forwarding.
+- `active` — Whether the endpoint is actually carrying traffic. The row existing is not enough: `false` means the project's port-forwarding toggle is off or the owner's current entitlement no longer includes port forwarding.
 
 **Errors:**
 - `bad_request` (400) — more than 16 `allow_cidrs`, an entry that is not a valid IP address or range, or a `static` app (it runs no process that could accept a connection; use `app` or `docker`)
-- `plan_limit_exceeded` (402) — the owner's plan does not include public TCP endpoints; the message carries the upgrade URL
+- `plan_limit_exceeded` (402) — the current account entitlement does not include public TCP endpoints; plugin workflows explain that the feature is unavailable, omit any purchase or plan-change URL, and do not retry
 - `permission_denied` (403) — the project's port-forwarding toggle is off. The toggle itself (`POST /apps/{app_id}/forwarding`) is a protected action — there is no MCP tool for it, it answers `protected_action` to an agent credential, and the message here names the URL a project admin must use
 - `not_found` (404) — app/channel not found, or the caller is below the admin role
 - `conflict` (409) — no forward node has a free port right now
@@ -1097,7 +1100,7 @@ To push over HTTPS: set the remote with the token in the **password** field — 
 
 ## POST /ssh-keys
 
-Register one OpenSSH public key on the authenticated user's account, for git over SSH. A key belongs to the account, not to one app. Send the PUBLIC half only — the content of a `.pub` file; the platform stores no private key. A key reaches every repository on the account, so your calling token must carry `repo:*`; `api_login` asks for all nine default scopes, because that is what the key goes on to mint.
+Register one OpenSSH public key on the authenticated user's account, for git over SSH. A key belongs to the account, not to one app. Send the PUBLIC half only — the content of a `.pub` file; the platform stores no private key. A key reaches every repository on the account, so your calling token must carry `repo:*`; `api_login` asks for all nine default scopes, because that is what the key goes on to mint, and it asks for one more thing: the account holds a verified address, or your own token carries `email:bind`. A token from `POST /registrations` or `POST /auth/ssh-key` carries that scope, so an agent registers a replacement key for itself.
 
 **SSH is the first git transport wherever a shell is available.** The private half never enters a tool call, and one registration covers every app on the machine. Reuse `~/.ssh/xhost_ed25519` if it exists; otherwise make the keypair at exactly that path — never in the project directory, and never with a per-project, per-app or per-tool suffix, which would only mint a second key on the account. HTTPS with the token in the remote URL is the fallback: take it where the network blocks outbound port 22, or after an SSH push fails.
 
@@ -1112,7 +1115,7 @@ Register one OpenSSH public key on the authenticated user's account, for git ove
 
 - `public_key` (string, required) — one OpenSSH public-key line.
 - `label` (string, optional) — your own name for the key; max 64 characters.
-- `api_login` (boolean, optional, default false) — true lets the key sign in through `POST /auth/ssh-key`; a registration key has it set already.
+- `api_login` (boolean, optional, default false) — true lets the key sign in through `POST /auth/ssh-key`; a registration key has it set already. True needs an `ssh-ed25519` key, and a verified address on the account or a calling token carrying `email:bind`.
 
 Unknown fields are refused: this route answers **422** for a body that holds a field it does not declare (e.g. `name` in place of `label`).
 
@@ -1132,9 +1135,10 @@ Unknown fields are refused: this route answers **422** for a body that holds a f
 Then push: `git remote add xhostd-ssh "git@git.xhostd.com:<username>/<app>.git"` and `GIT_SSH_COMMAND="ssh -i ~/.ssh/xhost_ed25519 -o IdentitiesOnly=yes" git push xhostd-ssh HEAD:master`, where `-o IdentitiesOnly=yes` stops ssh from offering another key it finds first. The platform also notifies the user about the new key, with its label and fingerprint.
 
 **Errors:**
-- `bad_request` (400) — the line is no valid OpenSSH public key, or the label is longer than 64 characters
+- `bad_request` (400) — the line is no valid OpenSSH public key, the label is longer than 64 characters, or you asked for `api_login` on a key that is not `ssh-ed25519`, the one type `POST /auth/ssh-key` accepts
 - `scope_denied` (403) — your calling token does not carry `repo:*`, or asks for `api_login` without all nine default scopes
 - `conflict` (409) — the platform holds that fingerprint already; a fingerprint is unique platform-wide. For the key at `~/.ssh/xhost_ed25519` this only means an earlier session registered it, so the key works — push with it. Never mint a second keypair to clear a 409.
+- `conflict` (409) — you asked for `api_login`, the account holds no verified address, and your token carries no `email:bind`. Sign the login message with an `api_login` key the account already holds and retry with the token `POST /auth/ssh-key` answers, verify an address on the account, or register the key without `api_login` for git alone.
 
 ---
 
@@ -1214,12 +1218,18 @@ xhostd-register\n<username or empty>\n<timestamp>\n
   "ssh_key_id": "uuid",
   "fingerprint_sha256": "SHA256:abc...",
   "git_ssh_host": "git.xhostd.com",
-  "limits": { "tier": "starter", "max_channels": 1, "blob_storage_bytes": 134217728, "...": "..." },
+  "limits": {
+    "tier": "starter", "rank": 0, "max_channels": 3, "cpu_soft_cores": 0.1,
+    "cpu_burst": 2, "mem_limit_mb": 128, "storage_mb": 500,
+    "blob_storage_bytes": 268435456, "image_size_bytes": 536870912,
+    "snapshot_retention_days": 1, "deploy_snapshot_keep": 1,
+    "port_forwarding": false, "agent_registration_only": true
+  },
   "next": { "verify_email": "POST /me/email-verifications", "renew_token": "POST /auth/ssh-key" }
 }
 ```
 
-`limits` is the `starter` row of `GET /plans`. Store `token` in a file with mode 0600 (`~/.config/xhostd/token`); never print it.
+`limits` is the complete `starter` row. Store `token` in a file with mode 0600 (`~/.config/xhostd/token`); never print it.
 
 **Errors:**
 - `bad_request` (400) — a key line the parser refuses; a key of another type (`only ssh-ed25519 keys can register or sign in`); `timestamp is outside the 300-second window; check the clock and sign again`; a block that does not verify (`invalid signature`, `signature namespace mismatch`, `the signature was made with a different key`); a requested name outside the rule; a label over 64 characters
@@ -1232,7 +1242,7 @@ xhostd-register\n<username or empty>\n<timestamp>\n
 
 ## POST /auth/ssh-key
 
-Mint a fresh 30-day token for a key registered with `api_login`, carrying the default scopes plus `email:bind`. **No bearer**: the signed message is the proof. This is also the one request that answers a token able to bind an address, so a caller that reads 403 from `POST /me/email-verifications` comes here. The registration key qualifies; a key `POST /ssh-keys` stored with `api_login: true` qualifies too.
+Mint a fresh 30-day token for a key registered with `api_login`, carrying the default scopes plus `email:bind`. **No bearer**: the signed message is the proof. This is also the one request that answers a token able to bind an address, so a caller that reads 403 from `POST /me/email-verifications` comes here. The registration key qualifies; a key `POST /ssh-keys` stored with `api_login: true` qualifies too, and so does a key a person added in the console with the box that lets it create API tokens.
 
 **Request body:** `public_key`, `timestamp`, `signature`, as for `POST /registrations`; no other field (**422** otherwise).
 
@@ -1262,7 +1272,7 @@ An account holds at most 20 tokens from this route. After a renewal, remove and 
 
 ## POST /me/email-verifications
 
-Start one email challenge for the caller's account. Bearer required, scope `email:bind`. Only `POST /registrations` and `POST /auth/ssh-key` grant that scope, because the address becomes the account's sign-in email; a credential from `POST /credentials` or `POST /tokens` reads 403. The platform mails an 8-character code (lowercase letters and digits without `0`, `1`, `i`, `l`, `o`) that expires in 15 minutes. The first of the two steps that move a `starter` account to `basic`. MCP: `request_email_verification(email)`.
+Start one email challenge for the caller's account. Bearer required, scope `email:bind`. Only `POST /registrations` and `POST /auth/ssh-key` grant that scope, because the address becomes the account's sign-in email; a credential from `POST /credentials` or `POST /tokens` reads 403. The platform mails an 8-character code (lowercase letters and digits without `0`, `1`, `i`, `l`, `o`) that expires in 15 minutes. This is the first of the two steps that move a `starter` account to `basic` and enable person-present account access. MCP: `request_email_verification(email)`.
 
 **Request body:**
 ```json
@@ -1287,7 +1297,7 @@ The response repeats no address.
 
 ## POST /me/email-verifications/complete
 
-Prove the code. Bearer required, no scope: the request carries a code alone, and it binds the address the start route chose. Success writes the address as the account's sign-in email, moves a `starter` account to `basic`, and queues the plan apply that raises the limits. From then on Google sign-in with that address opens the console for this account, where a person sees and revokes the registration key and the tokens. MCP: `complete_email_verification(code)`.
+Prove the code. Bearer required, no scope: the request carries a code alone, and it binds the address the start route chose. Success writes the address as the account's sign-in email, moves a `starter` account to `basic`, and queues the plan apply. Google sign-in with that address then opens the console for this account. The person can set a password in the console and later sign in with the username or email address; the console also lists the registration key and tokens for revocation. MCP: `complete_email_verification(code)`.
 
 **Request body:**
 ```json
@@ -1312,7 +1322,7 @@ Prove the code. Bearer required, no scope: the request carries a code alone, and
 
 ## POST /feedback
 
-Submit free-text feedback to the xhostd team about platform friction (many iterations, an unclear tool/error, a missing capability). Attributed to the authenticated user. Fire-and-forget.
+Submit free-text feedback to the xhostd team about platform friction (many iterations, an unclear tool/error, a missing capability). Attributed to the authenticated user. Plugin workflows call this route only after an explicit user request or consent.
 
 **Request body:**
 ```json
@@ -1449,7 +1459,7 @@ The storage cap warns and blocks nothing: no write fails and no deploy fails. Eg
 {
   "plan": "basic",
   "storage_bytes": 1572864,
-  "storage_limit_mb": 250,
+  "storage_limit_mb": 500,
   "bandwidth_month_bytes": 104857600
 }
 ```
@@ -1461,43 +1471,15 @@ The storage cap warns and blocks nothing: no write fails and no deploy fails. Eg
 
 ## GET /plans
 
-Return every plan tier and the caps it grants, lowest rank first. This is the one published source of a cap number: read it instead of hardcoding a limit.
+Return the subscription catalog and the caps each entry grants, lowest rank first.
 
-The route takes **no token**, reads no database, and answers every caller the same body. It carries no price — billing lives at Lemon Squeezy.
+The route takes **no token**, reads no database, and answers every caller the same body. It carries no price. This endpoint is documented for HTTP API accuracy but is outside plugin workflows: plugins must not display or compare the subscription catalog. Use `get_account_overview` for the authenticated account's current entitlement, limits, headroom, and feature availability.
 
 **Request body:** None
 
-**Response (200):**
-```json
-{
-  "plans": [
-    {
-      "tier": "basic",
-      "rank": 1,
-      "max_channels": 5,
-      "cpu_soft_cores": 0.1,
-      "cpu_burst": 2,
-      "visible_cores": 1,
-      "mem_limit_mb": 128,
-      "storage_mb": 250,
-      "blob_storage_bytes": 1073741824,
-      "image_size_bytes": 536870912,
-      "snapshot_retention_days": 1,
-      "deploy_snapshot_keep": 1,
-      "port_forwarding": false,
-      "agent_registration_only": false
-    }
-  ]
-}
-```
+**Response (200):** an object with a `plans` array. Each row includes the entitlement identifier, rank, resource limits, retention settings, feature flags, and whether agent registration alone can create that entitlement. The catalog is intentionally not reproduced here.
 
-**Notes:**
-- `agent_registration_only` is true for a tier only the agent registration API can create an account on (`starter`, rank 0). The console never offers it, and `POST /me/billing/plan` refuses it.
-- `storage_mb` is the account-wide database cap and is SOFT: over-limit warns and blocks nothing.
-- No row states an egress figure, because no plan limits egress. xhostd measures your egress and reports it on `GET /me/usage`; nothing counts it against a number and no egress carries a charge.
-- `blob_storage_bytes` is the account-wide object-storage cap and is ENFORCED: the S3 gateway rejects a crossing `PUT` with `507`. `-1` means unlimited.
-- `snapshot_retention_days` ages out `nightly` snapshots; `deploy_snapshot_keep` counts the `pre_deploy` snapshots a channel keeps, and a `pre_deploy` snapshot never ages out.
-- The MCP tool `get_account_overview` composes this route with `/me/stats`, `/me/usage/resources`, `/apps`, `/me/usage` and `/me/blob/storage`, and returns the caps beside the account's current usage in its `plan_headroom` block.
+**Plugin workflow:** call `get_account_overview`. It composes the applicable row with `/me/stats`, `/me/usage/resources`, `/apps`, `/me/usage`, and `/me/blob/storage`, and returns only the authenticated account's current limits beside current usage in `plan_headroom`.
 
 ---
 
@@ -1560,7 +1542,7 @@ The `<name>` portion (when not `*`) must match: `^[A-Za-z0-9][A-Za-z0-9/_\-\.]*$
 | `token_revoked` | 401 | Token has been revoked |
 | `scope_denied` | 403 | Token lacks the required scope |
 | `permission_denied` | 403 | Action not allowed for this caller or project (admin privileges required, or a project switch such as port forwarding is off) |
-| `protected_action` | 403 | A protected action needs a person in the web console. Tell the user to open the URL in the message. Tell the user to turn **agent access** on. Retry the call after the user answers. Ownership transfer is the exception: only a console session transfers a project, and no setting opens it to a credential |
+| `protected_action` | 403 | A protected action needs a person in the web console. Tell the user to open the URL in the message. Tell the user to turn **agent access** on. Retry the call after the user answers. The four ownership-transfer acts are the exception: only a console session starts, cancels, accepts, or declines a transfer, and no setting opens any of them to a credential |
 | `admin_not_configured` | 403 | Server admin user not set up |
 | `not_found` | 404 | Resource does not exist or is not owned by caller |
 | `bad_request` | 400 | Validation failure (see message for details) |
@@ -1574,34 +1556,42 @@ The `<name>` portion (when not `*`) must match: `^[A-Za-z0-9][A-Za-z0-9/_\-\.]*$
 
 ### Protected actions
 
-Twelve routes need a person in the web console. They are the three member
-writes, the two invite answers, and ownership transfer. The list also holds
-the two external-access toggles and the port-forwarding project toggle. The
-list ends with the GitHub connect, the GitHub disconnect, and
-`GET /apps/{app_id}/env/{key}/value`. Reads stay open:
-`GET /apps/{app_id}/members`, `GET /invites`, `GET /apps/{app_id}/github`,
+Seventeen routes need a person in the web console. They are the three member
+writes, the two invite answers, and the four ownership-transfer acts — the
+start, the cancel, the accept, and the decline. The list also holds
+the two external-access toggles and the port-forwarding project toggle, the
+GitHub connect, the GitHub disconnect, and
+`GET /apps/{app_id}/env/{key}/value`. The list ends with the database and
+object-storage restores, which need a person on the `prod` channel only. Reads stay open:
+`GET /apps/{app_id}/members`, `GET /invites`, `GET /transfers`,
+`GET /apps/{app_id}/github`,
 `GET /apps/{app_id}/env` and `POST /apps/{app_id}/github/sync` never answer
 this error.
 
-An agent credential gets `protected_action` on all twelve routes. The **agent
-access** switch opens eleven of them. The switch never opens ownership
-transfer, so that route fails again after the user turns the switch on.
+An agent credential gets `protected_action` on all seventeen routes. The **agent
+access** switch opens thirteen of them. The switch never opens any of the four
+ownership-transfer acts, so those routes fail again after the user turns the
+switch on.
 
-Which switch applies depends on the route. The nine project actions read the
+Which switch applies depends on the route. The eleven project actions read the
 app owner's switch on the project settings page. The two invite answers read
 the caller's own account default on the account page. The message names the
 correct page, so quote it to the user. Do not retry the call before the user
 answers.
 
 The app field `agent_protected_actions_effective` predicts this error: when it
-is `false`, an agent credential gets `protected_action` on those nine project
+is `false`, an agent credential gets `protected_action` on those eleven project
 actions. `agent_protected_actions_enabled` is the raw override, and `null`
 there means the app inherits the account default of the owner. The field does
-not predict the two invite answers or ownership transfer. The caller's own
-account default opens the invite answers, and no setting opens the transfer.
+not predict the two invite answers or the four transfer acts. The caller's own
+account default opens the invite answers, and no setting opens a transfer.
 
-Ownership transfer is the one action no setting opens. Tell the user to sign
-in to the console. The user transfers the project there.
+**Ownership transfer is a two-party protocol, and no setting opens any part
+of it.** The owner starts a transfer to an existing member; nothing moves until
+the recipient accepts, and the project then counts against the recipient's
+plan. The transfer stays pending until then: the owner can cancel it, and the
+recipient can decline it. Tell the user to sign in to the console and do their
+part there.
 
 ---
 
@@ -1613,7 +1603,7 @@ Unified credentials minted via `POST /credentials` carry the default scopes your
 
 Tokens from `POST /registrations` and `POST /auth/ssh-key` carry the same default set and expire after 30 days.
 
-**A mint never grants more scope, and never a longer life, than the caller holds.** A narrowed credential can renew itself, and cannot widen itself back. A short-lived one can renew itself, and cannot outlive itself: every token you mint expires with the token you minted it from, or earlier. `POST /tokens` grants a fixed nine scopes, so a token short of that set answers `scope_denied` (403) there; call `POST /credentials` instead. Each download-token route needs the one scope it mints, so a narrow download token cannot rotate into another artifact. `POST /ssh-keys` needs `repo:*`, the access a key carries by construction, and `api_login` needs all nine.
+**A mint never grants more scope, and never a longer life, than the caller holds.** A narrowed credential can renew itself, and cannot widen itself back. A short-lived one can renew itself, and cannot outlive itself: every token you mint expires with the token you minted it from, or earlier. `POST /tokens` grants a fixed nine scopes, so a token short of that set answers `scope_denied` (403) there; call `POST /credentials` instead. Each download-token route needs the one scope it mints, so a narrow download token cannot rotate into another artifact. `POST /ssh-keys` needs `repo:*`, the access a key carries by construction, and `api_login` needs all nine plus a verified address on the account or an `email:bind` token, because the key it registers mints one scope more than you hold.
 
 | Scope | Grants |
 |-------|--------|

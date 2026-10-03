@@ -45,7 +45,7 @@ const app = express();
 
 // The health check probes GET / and needs a 2xx. An API whose routes all
 // live under /api will fail the deploy even though the process is running,
-// unless it creates the file named by $XHOST_READY_FILE instead.
+// unless it creates the file named by $XHOSTD_READY_FILE instead.
 app.get("/", (req, res) => {
   res.json({ ok: true, service: "recipe-node-express", uptime: process.uptime() });
 });
@@ -54,13 +54,13 @@ app.get("/api/echo", (req, res) => {
   res.json({ echo: req.query.q ?? null });
 });
 
-const port = Number(process.env.XHOST_HTTP_PORT);
+const port = Number(process.env.XHOSTD_HTTP_PORT);
 app.listen(port, "0.0.0.0", () => {
   console.log(`listening on 0.0.0.0:${port}`);
 });
 ```
 
-Two lines hold the full contract with the platform. `XHOST_HTTP_PORT` is the
+Two lines hold the full contract with the platform. `XHOSTD_HTTP_PORT` is the
 port for your socket. Read that variable, and never write a number in the code.
 `0.0.0.0` is the address for the bind. The health check and the proxy both reach
 your container from outside it. **A server on `localhost` is therefore
@@ -248,6 +248,8 @@ ok`.** The platform prints that line, not your code. It gives the port that your
 process must bind, immediately before `launch.sh` runs. Your own line
 `listening on 0.0.0.0:3000` comes after it. Only after the probe passes does
 `caddy ensure_route` point the hostname at the new container.
+The excerpt predates the `XHOSTD_` names, so a deploy today prints
+`XHOSTD_HTTP_PORT` on that line ([Upgrade-safe code](https://docs.xhostd.com/guides/bkm#upgrade-safe-code)).
 
 To find out if the app is alive, and to read no log, call `get_runtime_log` with
 **no** `command`:
@@ -279,6 +281,53 @@ The `uptime` value comes from `process.uptime()` in `server.js`. Your own
 request to the demo therefore gives a different number from the transcript. The
 container is the same one, and the difference is not a fault.
 
+## Compress your responses
+
+The platform does not compress your app's responses for you, so turn
+compression on in the app. A compressed page reaches your visitors sooner and
+costs you less bandwidth, and doing it in the app compresses the whole path
+rather than one hop of it.
+
+Add the dependency to `package.json`, pinned like every other:
+
+```json
+"compression": "1.8.2"
+```
+
+Then register it before your routes, so it wraps them:
+
+```js
+import compression from "compression";
+
+app.use(compression());
+```
+
+It compresses JSON and HTML and skips the types that are already compressed,
+such as PNG and JPEG. Compressing those a second time costs CPU and saves
+nothing.
+
+One page shape to leave out. If a response renders a signed-in visitor's own
+details — their email, an API token, a CSRF field — beside a value taken from
+the URL, such as a search term you echo back into the form, serve that route
+uncompressed. The compressed size of the two together leaks the secret a
+character at a time to a site that can make the visitor's browser fetch the
+page. Filter it out with `compression`'s own hook:
+
+```js
+app.use(compression({
+  filter: (req, res) =>
+    !req.path.startsWith("/account") && compression.filter(req, res),
+}));
+```
+
+Call `compression.filter` in your own filter, as the example does. A `filter`
+option REPLACES the default content-type check rather than adding to it, so a
+filter that only tests the path turns the PNG and JPEG skipping back off.
+`compression.filter` is that default, exported so you can keep it.
+
+Pages that render no signed-in identity are unaffected, and so are pages that
+reflect nothing from the URL. Both halves have to be present for it to matter.
+
 ## When it goes wrong
 
 ### It listens on localhost instead of 0.0.0.0
@@ -294,7 +343,7 @@ This is the most common failure on the first deploy of an `app` template. The
 health check asks for `/` on the health port, and it needs a 2xx or a 3xx. An
 API with all its routes under `/api` answers 404 there. The deploy then fails,
 although the process operates correctly. The app can also create the file with
-the name in `$XHOST_READY_FILE`, which is the other signal that the probe
+the name in `$XHOSTD_READY_FILE`, which is the other signal that the probe
 accepts. If your app does not create that file, add a route at `/`, also a very
 simple one.
 
@@ -315,7 +364,7 @@ stop correctly. Always use `exec` for the last command.
 ### The port is hardcoded
 
 `app.listen(3000)` works, but it is still incorrect. The platform gives you the
-port in `XHOST_HTTP_PORT`, and the platform selects the value. Read the
+port in `XHOSTD_HTTP_PORT`, and the platform selects the value. Read the
 variable.
 
 ### A client-side route 404s on refresh

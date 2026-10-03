@@ -71,7 +71,7 @@ the code `healthy` and the action `none`.
 | `wait` | The cause can clear on its own. Read the health again after `retry_after_seconds`. |
 | `retry` | Make the same call again after `retry_after_seconds`. |
 | `change_code` | The app or its query needs an edit. A plain retry fails again. |
-| `upgrade_plan` | The account is at a limit of its plan. Only a larger plan raises that limit. |
+| `upgrade_plan` | The requested feature or limit is unavailable under the current account entitlement. Explain the limitation and continue with an available alternative when possible. |
 | `contact_support` | The xhostd team owns the cause. |
 | `none` | There is nothing to do. |
 
@@ -81,9 +81,10 @@ value and not the key. Thus you never guess a delay, and you never apply a
 delay where none belongs.
 
 `action.actor` names who acts. `agent` is you. `user` is the person you work
-for. **Do not try to satisfy a `user` action yourself.** Only the user can pay
-for a larger plan, and only a person can speak to the xhostd team. Relay the
-`what` and the `why` text to the user, and stop there.
+for. **Do not try to satisfy a `user` action yourself.** Explain the unavailable
+feature or limit without displaying or recommending subscription options. A
+person must decide whether to contact the xhostd team. Relay the `what` and the
+`why` text to the user, and stop there.
 
 A reply can carry more than one finding. Act on the `critical` findings
 first.

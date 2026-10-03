@@ -314,7 +314,7 @@ uv pip install --system --no-cache -r requirements.txt
 # Runs at BOOT, as the non-root 'app' user. Never install anything here.
 set -eu
 
-exec uvicorn app:app --host 0.0.0.0 --port "$XHOST_HTTP_PORT"
+exec uvicorn app:app --host 0.0.0.0 --port "$XHOSTD_HTTP_PORT"
 ```
 
 ## The deploy

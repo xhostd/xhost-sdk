@@ -29,11 +29,15 @@ the database checkpoint. A checkpoint without an aligned file marker does not
 represent an atomic restore of the whole app.
 
 Nightly snapshot retention differs by plan. Pre-deploy recovery points use a
-separate count policy. Read the current
+separate count policy. Read the current values from `get_account_overview` and the
 [backup policy](https://xhostd.com/faq#backups) before relying on a particular
 recovery window.
 
 ## Restore with an exact target
+
+Database restore is temporarily unavailable while xhostd changes how it runs
+to make it safer. A database restore refuses with `restore_unavailable`.
+Contact support for help with a restore. File restores are not affected.
 
 Database and file restores retain their own confirmation and permission rules.
 Review the project, channel, source checkpoint, and impact on current data.

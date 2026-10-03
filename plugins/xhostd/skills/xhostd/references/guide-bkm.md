@@ -105,14 +105,14 @@ full container id:
 
 ```
 health check failed for container ...: no 2xx/3xx response at
-GET / on port 3000 and no readiness file created at $XHOST_READY_FILE
+GET / on port 3000 and no readiness file created at $XHOSTD_READY_FILE
 within 120s
 ```
 
 Read the message literally. A deploy passes on **one** of two signals, the
 first signal that arrives. The first signal is an HTTP 2xx or 3xx response from
 `GET /` on the health port. The second signal is the file that
-`$XHOST_READY_FILE` names. The probe runs from outside the container, and it
+`$XHOSTD_READY_FILE` names. The probe runs from outside the container, and it
 does not follow a redirect. Thus a 301 response passes the check, but the probe
 does not fetch the target of the redirect.
 
@@ -121,11 +121,11 @@ Work down this list:
 - **The server binds the wrong address.** The probe comes from outside the
   container. The probe cannot reach a server on `127.0.0.1` or on `localhost`,
   whatever port that server took. Bind `0.0.0.0`.
-- **The server binds the wrong port.** Read `XHOST_HTTP_PORT`. Never write the
+- **The server binds the wrong port.** Read `XHOSTD_HTTP_PORT`. Never write the
   port into the code.
 - **There is no route at `GET /`.** An API with all its routes below `/api`
   answers 404 at `/`. Add a simple route at `/`, or use the other signal. For
-  the other signal, create the file `$XHOST_READY_FILE` when your app can
+  the other signal, create the file `$XHOSTD_READY_FILE` when your app can
   serve.
 - **The container stopped during the boot.** The platform checks the container
   state before both signals. Thus a process that creates the ready file and
@@ -133,7 +133,7 @@ Work down this list:
   code N)`, and the platform does not wait for the timeout. After that message,
   read the runtime log. Do not use the health-check advice above.
 
-The `static` template is the one exception. It gets no `XHOST_READY_FILE`, so
+The `static` template is the one exception. It gets no `XHOSTD_READY_FILE`, so
 the HTTP probe is the only signal for a static site. Its timeout is 10 seconds,
 not 120 seconds.
 
@@ -152,11 +152,11 @@ the base image.
 `uv pip install --system --no-cache -r requirements.txt` in `install.sh`. The
 `--system` flag puts the packages in the interpreter of the image. Thus
 `launch.sh` has no virtualenv to activate. Start the app with
-`exec uvicorn app:app --host 0.0.0.0 --port "$XHOST_HTTP_PORT"`.
+`exec uvicorn app:app --host 0.0.0.0 --port "$XHOSTD_HTTP_PORT"`.
 
 **Node — Express or Hono.** Put
 `npm install --omit=dev --no-audit --no-fund` in `install.sh`. Listen with
-`app.listen(Number(process.env.XHOST_HTTP_PORT), "0.0.0.0")`.
+`app.listen(Number(process.env.XHOSTD_HTTP_PORT), "0.0.0.0")`.
 
 For both stacks, pin every dependency to an exact version. With a range, two
 deploys of the same commit can install different code. The deploy that then
@@ -275,9 +275,33 @@ channel. The `S3_*` values give the gateway that your container must use. If
 you build a connection string from values that you kept, it is correct only
 until the platform moves something.
 
-**Use `XHOST_HTTP_PORT`.** `PORT` is a deprecated alias with the same value.
-The platform injects `PORT`, but it will remove the alias. New code must never
-read `PORT`.
+**Run migrations and listeners over `DATABASE_URL_DIRECT`.** `DATABASE_URL`
+can go through a transaction pooler, which lends a server session for one
+transaction at a time. A migration tool's session lock, `LISTEN`, and a
+session `SET` of a setting the pooler does not track, such as
+`statement_timeout`, need the session to last, so they use the direct URL. On a
+database with no pooler the two values are equal, so code that reads
+`DATABASE_URL_DIRECT` works everywhere.
+[What a transaction pooler changes](https://docs.xhostd.com/guides/recipes-postgres#what-a-transaction-pooler-changes)
+lists what else the pooler changes.
+
+**Read the platform's variables by their `XHOSTD_` names.** The platform
+injects these into the container. Each one keeps the legacy `XHOST_` name it
+shipped under, at the same value, so an app that reads the legacy name keeps
+working. New code reads the `XHOSTD_` name.
+
+| Variable | Legacy name | What it carries |
+|---|---|---|
+| `XHOSTD_HTTP_PORT` | `XHOST_HTTP_PORT` | The port your server listens on. Not set on `static`. |
+| `XHOSTD_READY_FILE` | `XHOST_READY_FILE` | The path to create when the app is ready. Not set on `static`. |
+| `XHOSTD_FORWARD_PORT` | `XHOST_FORWARD_PORT` | The container-side raw TCP port, `7000`. Not set on `static`. |
+| `XHOSTD_USER` | `XHOST_USER` | The username of the project owner. |
+| `XHOSTD_SHA` | `XHOST_SHA` | The commit that the deploy runs. |
+
+`PORT` is a deprecated alias of `XHOSTD_HTTP_PORT`, with the same value. The
+platform injects `PORT`, but it will remove the alias. New code must never read
+`PORT`. The recipes' deploy-log excerpts were captured before 2026-10-03, so
+their `starting launch.sh` line shows `XHOST_HTTP_PORT`.
 
 **Do not write to the container file system and expect the data later.** Every
 deploy starts a new container from a new image. Your app can write data at the
@@ -298,13 +322,13 @@ command. The change then runs when the container boots.
 set -eu
 
 alembic upgrade head
-exec uvicorn app:app --host 0.0.0.0 --port "$XHOST_HTTP_PORT"
+exec uvicorn app:app --host 0.0.0.0 --port "$XHOSTD_HTTP_PORT"
 ```
 
 On the `docker` template, put the same command in `CMD`:
 
 ```dockerfile
-CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app:app --host 0.0.0.0 --port $XHOST_HTTP_PORT"]
+CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app:app --host 0.0.0.0 --port $XHOSTD_HTTP_PORT"]
 ```
 
 A migration cannot run at the build. The build has no environment variables,
@@ -344,11 +368,13 @@ cannot remove the key from that layer.
 
 **The platform rejects a reserved key; it does not ignore the key without a
 message.** The platform injects these keys, and `set_env` refuses to write
-them: `XHOST_USER`, `XHOST_SHA`,
+them: `XHOSTD_USER`, `XHOSTD_SHA`, `XHOSTD_HTTP_PORT`,
+`XHOSTD_FORWARD_PORT`, `XHOSTD_READY_FILE`, `XHOST_USER`, `XHOST_SHA`,
 `XHOST_HTTP_PORT`, `PORT`, `XHOST_FORWARD_PORT`, `XHOST_READY_FILE`,
-`DATABASE_URL`, `DATABASE_URL_READONLY`, `DATABASE_HOST`,
-`DATABASE_PASSWORD`, `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`,
-`S3_SECRET_ACCESS_KEY`, `S3_REGION`. If you
+`DATABASE_URL`, `DATABASE_URL_READONLY`, `DATABASE_URL_DIRECT`,
+`DATABASE_HOST`, `DATABASE_PASSWORD`, `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`,
+`S3_SECRET_ACCESS_KEY`, `S3_REGION`. Every other key that starts with
+`XHOSTD_` is reserved too. If you
 want a different database, use a variable with a different name.
 
 **A change to the environment takes effect at the next deploy, not
@@ -390,23 +416,18 @@ the object.
 Each limit fails in a different way. Thus you must know which limit you are
 near.
 
-The platform counts the blob storage for the full account, across every
-channel. It applies the other limits per container or per image.
+The platform counts blob storage for the full account, across every channel.
+It applies the other limits per container or per image. Call
+`get_account_overview` for the current account's limits and remaining
+headroom; do not infer them from a subscription catalog.
 
-| Plan | Channels | Memory per container | Visible cores | Blob storage | Charged image size |
-|---|---|---|---|---|---|
-| basic | 5 | 128 MB | 1 | 1 GiB | 512 MiB |
-| builder | 10 | 512 MB | 2 | 10 GiB | 2 GiB |
-| indie | 25 | 1024 MB | 4 | 50 GiB | 4 GiB |
-| pro | 75 | 3072 MB | 8 | 150 GiB | 12 GiB |
-
-**The memory column applies to the live container, not to the build.** A build
+**The memory limit applies to the live container, not to the build.** A build
 runs under a separate 4 GB budget. Thus an image that builds correctly can
-still run out of memory when it boots on a small plan. The kernel then stops
-the container. A 128 MB container gives much less memory than the build
-that made the image. The status header of the runtime log tells you this. Its
-exit-code line carries the note `(out of memory — the container hit its memory
-limit)`.
+still run out of memory when it boots under a smaller runtime limit. The kernel
+then stops the container. Read the current memory limit from
+`get_account_overview`. The status header of the runtime log tells you when the
+container exceeds it. Its exit-code line carries the note
+`(out of memory — the container hit its memory limit)`.
 
 **The charged image size is not the total image size.** The largest platform
 base image that matches is exempt. The platform counts only what your build
@@ -414,29 +435,30 @@ adds on top. A deploy log line gives both numbers: `image 966.07 MB total,
 17.41 MB charged — base xhost-runtime:node22-py313 exempt`. Read the second
 number, not the first.
 
-**The visible cores are not the CPU time.** The visible-cores number limits how
-many cores the scheduler can use for your container. A separate quota limits
-how much CPU time the container gets. On the basic plan, that quota is one
-fifth of one core. Four visible cores do not give the work of four cores.
+**The CPU limit is a time limit.** Your plan's CPU figure is a share of CPU
+time, not a count of cores you own. Read the current value from
+`get_account_overview` rather than assuming a fixed share.
 
-**Set the worker count yourself.** `nproc` reports the visible cores of your
-plan correctly, but `/proc/cpuinfo` still shows the full topology of the host.
-Thus a library that sizes a worker pool from `/proc/cpuinfo` starts far too
-many workers and uses all the memory. Write `--workers 2`; do not let a library
+**Set the worker count yourself.** `nproc` reports the cores your container can
+run on, but `/proc/cpuinfo` still shows the full topology of the host. Thus a
+library that sizes a worker pool from `/proc/cpuinfo` starts far too many
+workers and uses all the memory. Write `--workers 2`; do not let a library
 select the number.
 
-**Port forwarding is not on every plan.** The basic plan does not include it. A
-request for it on the basic plan returns a plan error, not a port.
+**Port forwarding is not on every plan.** Check
+`plan_headroom.port_forwarding` in `get_account_overview`. When it is false,
+the endpoint is unavailable and the request returns a plan error, not a port.
 
 ## Read a quota error
 
 The platform makes its errors different on purpose, because each error needs a
 different response. Do not retry all of them.
 
-**402 `plan_limit_exceeded` — the plan does not permit this operation.** There
-are too many channels, or the plan does not carry the feature. A retry never
-works. Tell the user which limit the operation hit, and that an upgrade of the
-plan is the correction.
+**402 `plan_limit_exceeded` — the current entitlement does not permit this
+operation.** There are too many channels, or the entitlement does not carry
+the feature. A retry never works. Explain which feature or limit is
+unavailable, omit any purchase or plan-change URL from the error, and continue
+with an available alternative when possible.
 
 **403 `permission_denied` — the caller does not hold the role that the
 operation needs, or a project switch that the operation needs is off.** For a
@@ -478,13 +500,18 @@ deploy log shows `channel snapshot saved`. You prepare nothing in advance.
 see the snapshots. Then call
 `restore_channel_db(app_name, channel, snapshot_id)`.
 
+**Database restore is temporarily unavailable.** xhostd refuses every
+`restore_channel_db` call with `restore_unavailable` while it changes how a
+restore runs to make it safer. Do not retry the call. Tell the user to
+contact support for help with a restore.
+
 The restore renames the live schema, and restores the snapshot into a new empty
 schema. It drops the renamed copy only after the restore succeeds. Thus a
 failure in the middle renames the live schema back, and loses nothing.
 
-The platform refuses a restore of `prod` unless the app's environment contains
-`XHOST_ALLOW_PROD_RESTORE=1`. That control is deliberate, and it is not a
-formality. A restore also returns `channel_busy` if a deploy on that channel is
+A restore of `prod` is a protected action. An agent credential gets 403
+`protected_action` until the app owner turns agent access on in the console.
+That control is deliberate, and it is not a formality. A restore also returns `channel_busy` if a deploy on that channel is
 in the queue or is active.
 
 **To roll the code back:** call `rewind(app_name, channel)`. It moves the

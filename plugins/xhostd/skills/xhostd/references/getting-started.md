@@ -4,7 +4,7 @@ This walks through what an agent does, end-to-end, when a non-technical user say
 
 ## 0. Prerequisites
 
-The xhostd plugin is installed (Claude Code) or the connector named `xhostd` is enabled (claude.ai). The `mcp__xhostd__*` tools are available. The user has authenticated once via OAuth — if not, point them to `/mcp` → xhostd → Authenticate (Claude Code) or the connector's Connect button (claude.ai). They will sign in with Google and, on the first sign-in only, pick a **username** (lowercase letters, digits, hyphens; 1–40 chars; cannot start or end with a hyphen). That username becomes part of every public URL. With no person present, the agent registers its own account with an SSH key — `guide-register-as-agent.md`.
+The xhostd plugin is installed (Claude Code) or the connector named `xhostd` is enabled (claude.ai). The `mcp__xhostd__*` tools are available. The user has authenticated once through the browser — if not, point them to `/mcp` → xhostd → Authenticate (Claude Code) or the connector's Connect button (claude.ai). The sign-in page accepts an xhostd username or email address and password, or Google sign-in. A preprovisioned account signs in directly and requires no signup, username selection, email verification, multifactor authentication (MFA), or SMS. A person who uses Google with an email address that has no xhostd account must choose a **username** on first sign-in (lowercase letters, digits, hyphens; 1–40 chars; cannot start or end with a hyphen). That username becomes part of every public URL. With no person present, the agent registers its own account with an SSH key — `guide-register-as-agent.md`.
 
 ## 1. Decide on a name
 
@@ -73,8 +73,8 @@ git push xhostd HEAD:master
 
 For an `app`-template project the push is the same; the repo needs `install.sh` (optional) and `launch.sh` (required) at its root. The deploy only succeeds if the app signals readiness within 120s, and there are **two ways to do that** — whichever comes first. So the process must:
 
-- **Either serve HTTP:** **bind `0.0.0.0` on `$XHOST_HTTP_PORT`** — read `$XHOST_HTTP_PORT` from the environment, don't hardcode. (`$PORT` is still injected at the same value, so existing apps keep working, but it is deprecated and will be removed — use `$XHOST_HTTP_PORT` in new code.) `python app.py` with Flask's default `app.run()` binds `localhost` on a fixed port and will fail the check; pass the host and `$XHOST_HTTP_PORT` explicitly — and **answer `/` with a 200**: an API whose routes are all under `/api` fails the check even though it runs; add a minimal `/` handler.
-- **Or create `$XHOST_READY_FILE`** — for a process with no HTTP surface at all (a queue consumer, a cron-style daemon), create the file at the injected path instead of adding a dummy listener; it can be empty. Do it once the work loop is genuinely running, not at the top of `launch.sh`. Such a project keeps its hostname, and that URL returns 502 — expected, not a failure.
+- **Either serve HTTP:** **bind `0.0.0.0` on `$XHOSTD_HTTP_PORT`** — read `$XHOSTD_HTTP_PORT` from the environment, don't hardcode. (`$PORT` is still injected at the same value, so existing apps keep working, but it is deprecated and will be removed — use `$XHOSTD_HTTP_PORT` in new code.) `python app.py` with Flask's default `app.run()` binds `localhost` on a fixed port and will fail the check; pass the host and `$XHOSTD_HTTP_PORT` explicitly — and **answer `/` with a 200**: an API whose routes are all under `/api` fails the check even though it runs; add a minimal `/` handler.
+- **Or create `$XHOSTD_READY_FILE`** — for a process with no HTTP surface at all (a queue consumer, a cron-style daemon), create the file at the injected path instead of adding a dummy listener; it can be empty. Do it once the work loop is genuinely running, not at the top of `launch.sh`. Such a project keeps its hostname, and that URL returns 502 — expected, not a failure.
 - **Boot within 120s and stay within a small memory budget (~128 MB)** at run time — the cap applies to the running server, not to the build.
 - **Run as a non-root user.** The container runs as `app`; writable paths are `/app`, `$HOME`, and `/tmp`. All installation must live in `install.sh`, which runs at **build** time as root — installing from `launch.sh` fails with `Permission denied`.
 
@@ -91,7 +91,7 @@ uv pip install --system --no-cache flask gunicorn
 # launch.sh
 #!/bin/sh
 set -e
-exec gunicorn --bind "0.0.0.0:$XHOST_HTTP_PORT" app:app
+exec gunicorn --bind "0.0.0.0:$XHOSTD_HTTP_PORT" app:app
 ```
 
 ## 4. Deploy
@@ -152,6 +152,6 @@ The preview is live at `https://draft-lisbon-coffee-alice.xhostd.app`.
 
 **`status: failed`** — read the deploy log; surface the failure to the user in plain language and propose a fix.
 
-**Deploy fails right after start / log says `health check failed for container …`** (app template) — neither readiness signal arrived within 120s: `/` didn't return a 2xx on `$XHOST_HTTP_PORT` *and* no file was created at `$XHOST_READY_FILE`. Usual causes: the server bound `localhost` or a hardcoded port instead of `0.0.0.0:$XHOST_HTTP_PORT`; there's no `/` route (an API under `/api` only); the boot was too slow; or `launch.sh` hit `Permission denied` — it runs as the non-root `app` user, so installing anything there, or writing outside `/app`/`$HOME`/`/tmp`, crashes it. Fix the bind/`$XHOST_HTTP_PORT`, add a `/` handler returning 200, or move the install into `install.sh`. If the project has no HTTP surface at all, create `$XHOST_READY_FILE` once its work loop is running instead of adding a listener.
+**Deploy fails right after start / log says `health check failed for container …`** (app template) — neither readiness signal arrived within 120s: `/` didn't return a 2xx on `$XHOSTD_HTTP_PORT` *and* no file was created at `$XHOSTD_READY_FILE`. Usual causes: the server bound `localhost` or a hardcoded port instead of `0.0.0.0:$XHOSTD_HTTP_PORT`; there's no `/` route (an API under `/api` only); the boot was too slow; or `launch.sh` hit `Permission denied` — it runs as the non-root `app` user, so installing anything there, or writing outside `/app`/`$HOME`/`/tmp`, crashes it. Fix the bind/`$XHOSTD_HTTP_PORT`, add a `/` handler returning 200, or move the install into `install.sh`. If the project has no HTTP surface at all, create `$XHOSTD_READY_FILE` once its work loop is running instead of adding a listener.
 
 **`git push` succeeded but the deploy is empty / nothing changed** — prod is bound to `branch:master`, but a fresh `git init` defaults to `main`. Push `master` (`git push xhostd HEAD:master`) or deploy with `ref` set to your actual branch.

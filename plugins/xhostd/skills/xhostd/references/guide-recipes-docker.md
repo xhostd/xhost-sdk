@@ -72,7 +72,7 @@ COPY . .
 # Migrations run in the START command, never at build time. The build has
 # no DATABASE_URL at all — xhostd injects env at run time only, never as
 # build args — so a build-time migration cannot work even in principle.
-CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app:app --host 0.0.0.0 --port $XHOST_HTTP_PORT"]
+CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app:app --host 0.0.0.0 --port $XHOSTD_HTTP_PORT"]
 ```
 
 Four parts of that file do real work.
@@ -131,10 +131,13 @@ args.** There is no `--build-arg` path, and the build can read no secret
 store. Your `DATABASE_URL`, your `S3_*` credentials and every variable that
 you set appear in one place: the container's environment at container start.
 That is why `alembic upgrade head` is in `CMD` and not in a `RUN` step. A
-migration at build time has no database to connect to.
+migration at build time has no database to connect to. The migration reads
+`DATABASE_URL_DIRECT`, which reaches the database server itself, and the app
+reads `DATABASE_URL`, which can go through a transaction pooler. The
+Postgres recipe shows both.
 
 **`CMD` uses the `sh -c` form on purpose.** The shell expands
-`$XHOST_HTTP_PORT`. The `exec` replaces the shell with uvicorn, so the server
+`$XHOSTD_HTTP_PORT`. The `exec` replaces the shell with uvicorn, so the server
 gets the stop signals directly. Your app needs both details. See
 [When it goes wrong](#when-it-goes-wrong).
 
@@ -190,7 +193,7 @@ class NoteIn(BaseModel):
 
 
 # The health check probes GET / and needs a 2xx, so / must not 404 —
-# unless the app creates the file named by $XHOST_READY_FILE instead.
+# unless the app creates the file named by $XHOSTD_READY_FILE instead.
 @app.get("/")
 def root():
     with engine.connect() as conn:
@@ -229,10 +232,10 @@ def mark_done(note_id: int):
 ```
 
 Note the route at `/`. The deploy's health check probes `GET /` on the port
-that `$XHOST_HTTP_PORT` names, and the value is `3000`. The probe needs a 2xx
+that `$XHOSTD_HTTP_PORT` names, and the value is `3000`. The probe needs a 2xx
 or 3xx answer within 120 seconds. An API with all its routes under `/api`
 fails its deploy, although the process runs correctly. The one alternative is
-the file that `$XHOST_READY_FILE` names, which the probe also accepts.
+the file that `$XHOSTD_READY_FILE` names, which the probe also accepts.
 
 ## The deploy
 
@@ -387,8 +390,8 @@ your image. Here that base is the ~167 MB difference, and the platform
 charges you for the 94.63 MB that you added. It subtracts one base only, and
 only if your image is truly built on that base.
 
-Each plan has its own cap: basic 512 MiB, builder 2 GiB, indie 4 GiB, pro
-12 GiB.
+Call `get_account_overview` for the current account's charged image-size cap.
+Do not infer it from a subscription catalog.
 
 **`channel snapshot saved: 0.00 MB`.** Every non-static deploy saves a
 snapshot of the channel's Postgres schema before the new container starts.
@@ -447,6 +450,35 @@ Those indices are useful after a redeploy. The platform archives the previous
 container's log, so you can still read the output of the version that
 crashed. Give its `container_index` to `get_runtime_log`.
 
+## Compress your responses
+
+The platform does not compress your app's responses for you. Your image runs
+your server, so compression is a setting in that server, and turning it on
+compresses the whole path rather than one hop of it. Visitors wait less and you
+spend less bandwidth.
+
+The app in "The files" is FastAPI, which ships the middleware, so this needs no
+change to `requirements.txt`:
+
+```python
+from fastapi.middleware.gzip import GZipMiddleware
+
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+```
+
+On another stack, look for the equivalent: `compression` for Express, `gzip on`
+for nginx, `CompressionMiddleware` for ASP.NET Core. Leave already-compressed
+types alone, images among them, and skip any endpoint that streams — buffering a
+stream to compress it defeats the point of streaming.
+
+Skip one more: any route that renders a signed-in visitor's own details — their
+email, an API token, a CSRF field — beside a value taken from the URL, such as a
+search term echoed back into the form. The compressed size of the two together
+leaks the secret a character at a time to a site that can make the visitor's
+browser fetch the page. Either exclude that path, or stop reflecting the URL
+value on it. Both halves have to be present for it to matter, so a page that
+renders no identity, or reflects nothing, is unaffected.
+
 ## When it goes wrong
 
 ### You expected build args to carry secrets or `DATABASE_URL`
@@ -462,8 +494,8 @@ a secret into the image yourself.
 
 ### The image is over your plan's cap
 
-The deploy fails at the build step. The message names the charged size, the
-cap and your plan, and the platform removes the image. Read the
+The deploy fails at the build step. The message names the charged size and
+current cap, and the platform removes the image. Read the
 `total`/`charged` line first. If `charged` is near `total`, your base is not
 a warm base, and the platform charges you for all of it. Change `FROM` to one
 of the eight warm bases above, which usually corrects the whole problem. If
@@ -504,18 +536,18 @@ in the chain.
 ### `GET /` returns 404, so the deploy fails even though the app started
 
 The health check needs a 2xx or 3xx answer from `GET /` on the health port
-within 120 seconds. As an alternative, the file that `$XHOST_READY_FILE`
+within 120 seconds. As an alternative, the file that `$XHOSTD_READY_FILE`
 names must exist. An app that serves `/api/...` only, and makes no ready
 file, fails the deploy. Its own logs still show a correct start. Add a root
 route, and a JSON `{"ok": true}` is enough. This recipe's deploy succeeded,
 so its log does not hold the message below. The message has this shape, with
 a short container id:
 `health check failed for container ...: no 2xx/3xx response at GET / on
-port 3000 and no readiness file created at $XHOST_READY_FILE within 120s`.
+port 3000 and no readiness file created at $XHOSTD_READY_FILE within 120s`.
 
 ### The server listens on a hardcoded port
 
-Bind the port that `$XHOST_HTTP_PORT` names, not a literal port. The platform
+Bind the port that `$XHOSTD_HTTP_PORT` names, not a literal port. The platform
 selects the value, and the health check probes that port only. The probe
 cannot see a server on any other port.
 
@@ -523,11 +555,11 @@ This failure is easy to miss. `CMD` uses the `sh -c` form for one reason: the
 shell expands the variable. The pure exec form —
 
 ```dockerfile
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "$XHOST_HTTP_PORT"]
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "$XHOSTD_HTTP_PORT"]
 ```
 
 — expands nothing. uvicorn gets the literal 16-character string
-`$XHOST_HTTP_PORT`, and it stops on that value. Use `sh -c`, or read the
+`$XHOSTD_HTTP_PORT`, and it stops on that value. Use `sh -c`, or read the
 variable in your own code.
 
 ### 404 and 502 from the hostname mean different things

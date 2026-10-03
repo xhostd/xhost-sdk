@@ -28,7 +28,7 @@ app = FastAPI()
 
 # The health check probes GET / and needs a 2xx. A pure API whose routes
 # all live under /api fails the deploy even though the process is running,
-# unless it creates the file named by $XHOST_READY_FILE instead.
+# unless it creates the file named by $XHOSTD_READY_FILE instead.
 @app.get("/")
 def root():
     return {"ok": True, "service": "recipe-python-fastapi"}
@@ -72,7 +72,7 @@ uv pip install --system --no-cache -r requirements.txt
 # Runs at BOOT, as the non-root 'app' user. Never install anything here.
 set -eu
 
-exec uvicorn app:app --host 0.0.0.0 --port "$XHOST_HTTP_PORT"
+exec uvicorn app:app --host 0.0.0.0 --port "$XHOSTD_HTTP_PORT"
 ```
 
 Two flags hold the contract with the platform. `--host 0.0.0.0` makes the
@@ -80,7 +80,7 @@ server available from outside its container. The health check and the proxy
 both come from outside the container. By default, uvicorn binds to an address
 that they cannot reach.
 
-`--port "$XHOST_HTTP_PORT"` reads the port that the platform assigned. Never
+`--port "$XHOSTD_HTTP_PORT"` reads the port that the platform assigned. Never
 hardcode a port number. The `exec` makes uvicorn PID 1, so uvicorn gets the
 stop signals directly. A shell in front of uvicorn ignores those signals.
 
@@ -246,6 +246,8 @@ That 200 *is* the health check. The platform prints the `[xhost] starting
 launch.sh (XHOST_HTTP_PORT=3000)` line above it, not your code. That line names
 the port that the probe uses. `health_check ok` comes next. Only then does
 `caddy ensure_route` point the hostname at the new container.
+The excerpt predates the `XHOSTD_` names, so a deploy today prints
+`XHOSTD_HTTP_PORT` on that line ([Upgrade-safe code](https://docs.xhostd.com/guides/bkm#upgrade-safe-code)).
 
 Then two commands prove the result against the live app:
 
@@ -259,6 +261,41 @@ $ curl -sS "https://recipe-python-docs.xhostd.app/api/echo?q=hello"
 
 Both responses have the type `application/json`. The first response is 45
 bytes.
+
+## Compress your responses
+
+The platform does not compress your app's responses for you, so turn
+compression on in the app. A compressed page reaches your visitors sooner and
+costs you less bandwidth, and doing it in the app compresses the whole path
+rather than one hop of it.
+
+FastAPI ships the middleware, so this needs no new dependency. Add two lines to
+`app.py`:
+
+```python
+from fastapi.middleware.gzip import GZipMiddleware
+
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+```
+
+`minimum_size` is the floor in bytes. Below it the compressed response would be
+no smaller than the original, so the middleware sends the body unchanged.
+
+One page shape to leave out. If a response renders a signed-in visitor's own
+details — their email, an API token, a CSRF field — beside a value taken from
+the URL, such as a search term you echo back into the form, serve that route
+uncompressed. The compressed size of the two together leaks the secret a
+character at a time to a site that can make the visitor's browser fetch the
+page.
+
+`GZipMiddleware` compresses everything it sees, so the way to hold a route out
+is to stop echoing the URL value into it. Render the search term only on the
+page that owns the search, and leave every shared layout free of it. The other
+option is the one the xhostd console takes: it echoes the search term in its
+shared layout, so it serves no compressed response at all.
+
+Pages that render no signed-in identity are unaffected, and so are pages that
+reflect nothing from the URL. Both halves have to be present for it to matter.
 
 ## When it goes wrong
 
@@ -276,7 +313,7 @@ address uvicorn used. Look for `Uvicorn running on http://0.0.0.0:...`, not for
 The health check asks for `/` on the health port, and it needs a 2xx or a 3xx.
 An API with all its routes under `/api` answers 404 there, so the deploy fails
 although the service works. The probe accepts one other signal: your app
-creates the file with the name in `$XHOST_READY_FILE`. As an alternative, add a
+creates the file with the name in `$XHOSTD_READY_FILE`. As an alternative, add a
 route at `/`, however simple.
 
 ### You used pip in place of uv
