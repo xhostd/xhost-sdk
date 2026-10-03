@@ -298,7 +298,7 @@ https://<username>:<token>@git.xhostd.com/<username>/<app>.git
 git tells you so. This warning is normal, not a fault:
 
 ```bash
-$ git clone https://docs:$XHOST_TOKEN@git.xhostd.com/docs/recipe-docker-pg.git
+$ git clone https://docs:$XHOSTD_TOKEN@git.xhostd.com/docs/recipe-docker-pg.git
 Cloning into 'recipe-docker-pg'...
 warning: You appear to have cloned an empty repository.
 ```
@@ -313,7 +313,7 @@ $ git push origin master
 ```
 
 Never put the token in a file that you commit, or in text that you paste.
-`$XHOST_TOKEN` above holds the value from `get_credentials`. A remote URL
+`$XHOSTD_TOKEN` above holds the value from `get_credentials`. A remote URL
 with a real token in it goes into `.git/config`, into your shell history and
 into the output of every `git remote -v`.
 
