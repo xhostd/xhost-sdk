@@ -187,13 +187,13 @@ Write `$(cat ~/.config/xhostd/token)` in a command. Never paste the value.
 **The MCP server.** Add it with the token as a header:
 
 ```sh
-claude mcp add --transport http xhost https://mcp.xhostd.com/mcp/ \
+claude mcp add --transport http xhostd https://mcp.xhostd.com/mcp/ \
   --header "Authorization: Bearer $(cat ~/.config/xhostd/token)"
 ```
 
-The tools appear after the client connects again: `/mcp`, then `xhost`, then
-reconnect, or a new session. The server name `xhost` is the name the plugin
-uses, so the skill's `mcp__xhost__*` names match.
+The tools appear after the client connects again: `/mcp`, then `xhostd`, then
+reconnect, or a new session. The server name `xhostd` is the name the plugin
+uses, so the skill's `mcp__xhostd__*` names match.
 
 **The HTTP API.** Every route in the
 [API reference](https://docs.xhostd.com/api) takes the same header:
@@ -208,8 +208,8 @@ account already, so skip `register_ssh_key`; it answers `409` for this key,
 which is correct. Set the SSH remote and push:
 
 ```sh
-git remote add xhost-ssh "git@git.xhostd.com:<username>/<app>.git"
-GIT_SSH_COMMAND="ssh -i ~/.ssh/xhost_ed25519 -o IdentitiesOnly=yes" git push xhost-ssh HEAD:master
+git remote add xhostd-ssh "git@git.xhostd.com:<username>/<app>.git"
+GIT_SSH_COMMAND="ssh -i ~/.ssh/xhost_ed25519 -o IdentitiesOnly=yes" git push xhostd-ssh HEAD:master
 ```
 
 [Push code with git](https://docs.xhostd.com/guides/git) explains the
@@ -256,8 +256,8 @@ A renewal changes the header the MCP client holds, so remove the server and
 add it again:
 
 ```sh
-claude mcp remove xhost
-claude mcp add --transport http xhost https://mcp.xhostd.com/mcp/ \
+claude mcp remove xhostd
+claude mcp add --transport http xhostd https://mcp.xhostd.com/mcp/ \
   --header "Authorization: Bearer $(cat ~/.config/xhostd/token)"
 ```
 

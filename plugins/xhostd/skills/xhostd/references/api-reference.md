@@ -1,6 +1,6 @@
 # xhostd API Reference
 
-This is the underlying HTTP API that the MCP tools wrap. For normal agent usage, prefer the `mcp__xhost__*` tools — an OAuth session or a registered agent's token authenticates them. This reference is here for deep dives, debugging, or direct programmatic access.
+This is the underlying HTTP API that the MCP tools wrap. For normal agent usage, prefer the `mcp__xhostd__*` tools — an OAuth session or a registered agent's token authenticates them. This reference is here for deep dives, debugging, or direct programmatic access.
 
 Base URL: `https://api.xhostd.com`
 
@@ -1129,7 +1129,7 @@ Unknown fields are refused: this route answers **422** for a body that holds a f
 }
 ```
 
-Then push: `git remote add xhost-ssh "git@git.xhostd.com:<username>/<app>.git"` and `GIT_SSH_COMMAND="ssh -i ~/.ssh/xhost_ed25519 -o IdentitiesOnly=yes" git push xhost-ssh HEAD:master`, where `-o IdentitiesOnly=yes` stops ssh from offering another key it finds first. The platform also notifies the user about the new key, with its label and fingerprint.
+Then push: `git remote add xhostd-ssh "git@git.xhostd.com:<username>/<app>.git"` and `GIT_SSH_COMMAND="ssh -i ~/.ssh/xhost_ed25519 -o IdentitiesOnly=yes" git push xhostd-ssh HEAD:master`, where `-o IdentitiesOnly=yes` stops ssh from offering another key it finds first. The platform also notifies the user about the new key, with its label and fingerprint.
 
 **Errors:**
 - `bad_request` (400) — the line is no valid OpenSSH public key, or the label is longer than 64 characters

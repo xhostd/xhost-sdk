@@ -1,14 +1,14 @@
 {
-  "name": "xhost-sdk",
+  "name": "xhostd-sdk",
   "interface": {
     "displayName": "xhostd"
   },
   "plugins": [
     {
-      "name": "xhost",
+      "name": "xhostd",
       "source": {
         "source": "local",
-        "path": "./plugins/xhost"
+        "path": "./plugins/xhostd"
       },
       "policy": {
         "installation": "AVAILABLE",

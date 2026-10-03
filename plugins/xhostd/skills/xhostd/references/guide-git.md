@@ -100,8 +100,8 @@ machine. Repeat this step on a new machine only.
 Then set the SSH remote and push:
 
 ```sh
-git remote add xhost-ssh "git@git.xhostd.com:<username>/<app>.git"
-GIT_SSH_COMMAND="ssh -i ~/.ssh/xhost_ed25519 -o IdentitiesOnly=yes" git push xhost-ssh HEAD:master
+git remote add xhostd-ssh "git@git.xhostd.com:<username>/<app>.git"
+GIT_SSH_COMMAND="ssh -i ~/.ssh/xhost_ed25519 -o IdentitiesOnly=yes" git push xhostd-ssh HEAD:master
 ```
 
 The `HEAD:master` refspec is deliberate. xhostd binds the prod channel to
@@ -152,8 +152,8 @@ https://x-access-token:<token>@git.xhostd.com/<username>/<app>.git
 Set the remote and push:
 
 ```sh
-git remote add xhost "https://<username>:<token>@git.xhostd.com/<username>/<app>.git"
-git push xhost HEAD:master
+git remote add xhostd "https://<username>:<token>@git.xhostd.com/<username>/<app>.git"
+git push xhostd HEAD:master
 ```
 
 > **Security:** `git remote add` with the token in the URL writes it to
@@ -172,7 +172,7 @@ The `HEAD:master` refspec is deliberate here too. xhostd binds the prod
 channel to the `master` branch, and a new local repo often uses `main`
 as its default branch.
 
-Use `git remote set-url xhost ...` if the remote already exists. `get_app`
+Use `git remote set-url xhostd ...` if the remote already exists. `get_app`
 and `GET /apps/{app_id}` return the exact `repo_url` of each app.
 
 ### Interactive form (no token in the URL)
@@ -211,7 +211,7 @@ shows the command.
 Then update the remote URL:
 
 ```sh
-git remote set-url xhost "https://<username>:<new-token>@git.xhostd.com/<username>/<app>.git"
+git remote set-url xhostd "https://<username>:<new-token>@git.xhostd.com/<username>/<app>.git"
 ```
 
 ## A push fails again and again: clear a stale cached credential
