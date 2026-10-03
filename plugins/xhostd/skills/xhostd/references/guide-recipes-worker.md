@@ -7,8 +7,8 @@ serves no HTTP.
 
 The deploy's health check accepts two readiness signals, and it takes the first
 signal that arrives. The first signal is an HTTP 2xx or 3xx response from
-`GET /` on `$XHOST_HTTP_PORT`. The second signal is the file with the name in
-`$XHOST_READY_FILE`. A worker binds no port, so only the second signal is
+`GET /` on `$XHOSTD_HTTP_PORT`. The second signal is the file with the name in
+`$XHOSTD_READY_FILE`. A worker binds no port, so only the second signal is
 available to it. Most recipes teach the first signal. This one teaches the
 second, and it shows how to verify a channel that has no URL.
 
@@ -41,7 +41,7 @@ none.
 
 The work is a toy: a counter that prints one JSON line per tick. The shape
 around it is the part to copy. This channel serves no HTTP at all, so the
-deploy's HTTP probe can never pass. The worker creates $XHOST_READY_FILE
+deploy's HTTP probe can never pass. The worker creates $XHOSTD_READY_FILE
 after it reads a valid configuration, which is the other signal the health
 check accepts.
 """
@@ -86,7 +86,7 @@ def main():
     # Create the ready file HERE, not before. setup() can fail, and that
     # failure must fail the deploy. A worker that creates the file first
     # reports a healthy channel, then dies and restarts without end.
-    Path(os.environ["XHOST_READY_FILE"]).touch()
+    Path(os.environ["XHOSTD_READY_FILE"]).touch()
     emit({"event": "ready", "interval_s": interval})
 
     # The loop never stops. If main() returns, the container exits, and the
@@ -386,7 +386,7 @@ file existed:
 [2026-08-02T22:01:15+00:00] [container] ValueError: TICK_SECONDS must be positive, not 0.0
 [2026-08-02T22:01:16+00:00] boot failed — removing new container b8e0c4721410b968005cbffeedba5568ef0fe867220c66c91c9ae90e01ece098; previous container keeps serving its own image — this failed deploy did not change its content
 [2026-08-02T22:01:17+00:00] deploy failed (host agent): remote agent error (health_check_error): container xhost-26a55c60-59489f61-00000003 exited during boot (exit code 1)
-[2026-08-02T22:01:17+00:00] pre-deploy DB snapshot 69701ced-ea7f-4655-b070-0f56e82d4684 was taken before this failure; if the failed deploy changed the database, restore_channel_db can revert to it
+[2026-08-02T22:01:17+00:00] pre-deploy DB snapshot 69701ced-ea7f-4655-b070-0f56e82d4684 was taken before this failure; if the failed deploy changed the database, contact support for help with a restore (database restore is temporarily unavailable)
 ```
 
 The real log carries that traceback three times, because the platform started
@@ -414,8 +414,10 @@ left behind must not certify that process.
 
 **`pre-deploy DB snapshot ... was taken before this failure`.** Every non-static
 channel gets a database, and the platform takes a snapshot of it before each
-deploy. This worker uses no database, so the line changes nothing here. A
-worker that uses one can go back to that snapshot with `restore_channel_db`.
+deploy. This worker uses no database, so the line changes nothing here.
+Database restore is temporarily unavailable, so `restore_channel_db`
+refuses with `restore_unavailable`. For a worker that uses a database,
+contact support for help with a restore.
 
 ### The crashed container is readable, and the old one still runs
 
@@ -467,7 +469,7 @@ replaces it.
 
 ### The ready file at the top of `launch.sh`
 
-A `launch.sh` that creates `$XHOST_READY_FILE` before it starts the worker
+A `launch.sh` that creates `$XHOSTD_READY_FILE` before it starts the worker
 always passes the health check. The channel then reports healthy and does no
 work. `worker.py` states the reason at the `Path(...).touch()` call: `setup` can
 fail, and that failure must fail the deploy. The file is the signal that the
@@ -480,15 +482,15 @@ with a short container id. It names both signals that the health check accepts:
 
 ```text
 health check failed for container ...: no 2xx/3xx response at
-GET / on port 3000 and no readiness file created at $XHOST_READY_FILE
+GET / on port 3000 and no readiness file created at $XHOSTD_READY_FILE
 within 120s
 ```
 
 For a worker the first half is always true, and you cannot stop the HTTP probe.
 The message therefore tells you one thing: your worker did not create
-`$XHOST_READY_FILE`. Two causes are usual. The worker blocks on slow work
+`$XHOSTD_READY_FILE`. Two causes are usual. The worker blocks on slow work
 before it creates the file. Or the worker writes a file with a name of its own,
-in place of the name in `$XHOST_READY_FILE`.
+in place of the name in `$XHOSTD_READY_FILE`.
 
 ### The worker returns, or `launch.sh` has no `exec`
 
@@ -547,7 +549,7 @@ hostname. No process listens on the health port, so the proxy has no upstream.
 A 404 from the hostname is different: it tells you that the channel has no
 route, because the deploy did not reach `caddy ensure_route`.
 
-To get a worker **and** a URL, serve HTTP on `$XHOST_HTTP_PORT` from the same
+To get a worker **and** a URL, serve HTTP on `$XHOSTD_HTTP_PORT` from the same
 container, next to the loop. The platform permits this, and the HTTP arm of the
 health check then passes too.
 

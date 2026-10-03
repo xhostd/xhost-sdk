@@ -27,10 +27,9 @@ from an injected `DATABASE_URL`. A static channel has no database, so it gets no
 
 The container also carries `DATABASE_URL_READONLY`: the same database, a
 second role that can `SELECT` from every table in `public` and run no write.
-Use it for a query surface you expose to visitors. Writes and migrations use
-`DATABASE_URL`. Data the read-only role must not see goes in a schema you
-create (`CREATE SCHEMA private`). The Postgres reference page has the whole
-contract.
+Use it for a query surface you expose to visitors. Writes use
+`DATABASE_URL`, and migrations use `DATABASE_URL_DIRECT`. Data the read-only role must not see goes in a schema you
+create (`CREATE SCHEMA private`).
 
 Schema changes ship as ordinary alembic migrations, and they run at container
 start. The first boot of a new app applies every migration in order against
@@ -56,10 +55,22 @@ ship in one commit. The two guides divide the prose only, never the deploy.
 
 ### How the app connects
 
-xhostd sets one value for the database connection, and you set nothing. The
-value is `DATABASE_URL`. Your channel owns a whole database, and your data is
-in the standard `public` schema of that database. Your SQL therefore uses
-plain table names — `notes`, not `someschema.notes`.
+xhostd sets the database connection, and you set nothing. The app reads
+two values:
+
+- `DATABASE_URL` for the app's own queries. It can go through a
+  transaction pooler, which holds a database session for one transaction
+  at a time.
+- `DATABASE_URL_DIRECT` for the migrations. It always reaches the
+  database server itself, so a migration keeps its session from start to
+  end.
+
+On a database with no pooler, the two values are equal.
+[What a transaction pooler changes](#what-a-transaction-pooler-changes)
+lists what breaks over `DATABASE_URL`. Your channel owns
+a whole database, and your data is in the standard `public` schema of
+that database. Your SQL therefore uses plain table names — `notes`, not
+`someschema.notes`.
 
 xhostd gives you `DATABASE_URL` with the bare `postgresql://` scheme:
 
@@ -87,6 +98,66 @@ def database_url() -> str:
 If you do not make this correction, Python reports
 `ModuleNotFoundError: No module named 'psycopg2'`. See
 [When it goes wrong](#when-it-goes-wrong).
+
+### What a transaction pooler changes
+
+A database on a newer server runs behind a transaction pooler, PgBouncer.
+`DATABASE_URL` and `DATABASE_URL_READONLY` reach the pooler on port 6432,
+and `DATABASE_URL_DIRECT` reaches the server itself on port 5432. A
+database on an older server has no pooler, and all three name port 5432.
+Read the port in `DATABASE_URL` to tell which case you are in. When the
+platform moves a database to a newer server, `DATABASE_URL` can switch to
+the pooler, and the notification that ends the move tells you so.
+
+The pooler lends your connection a server session for one transaction at
+a time. Anything that lives in a session and outlives a transaction
+therefore breaks over `DATABASE_URL`:
+
+- **A session `SET` of a setting the pooler does not track**, such as
+  `statement_timeout`. Use `SET LOCAL` inside the transaction instead.
+  The pooler keeps a session `SET` of a setting it tracks, such as
+  `search_path`, `TimeZone`, or `application_name`.
+- **A session advisory lock**, `pg_advisory_lock`. The transaction form,
+  `pg_advisory_xact_lock`, works. Rails migrations, Prisma Migrate,
+  GoodJob, and Que take session locks.
+- **`LISTEN`.** Graphile Worker, Oban, River, and GoodJob listen. A
+  `NOTIFY` works, because Postgres sends it when the transaction commits.
+- **A temporary table** that must outlive its transaction.
+- **A `WITH HOLD` cursor**, and Django's server-side cursors. Set
+  `DISABLE_SERVER_SIDE_CURSORS = True` in the Django `DATABASES` entry
+  that uses `DATABASE_URL`.
+- **An SQL `PREPARE` statement.** Your driver's protocol-level prepared
+  statements work, because the pooler tracks them.
+- **A startup parameter that the pooler does not track.** The pooler
+  accepts `application_name`, `client_encoding`, `DateStyle`,
+  `default_transaction_read_only`, `IntervalStyle`, `scram_iterations`,
+  `search_path`, `session_authorization`, `standard_conforming_strings`,
+  and `TimeZone`, set directly or with `-c` in the `options` parameter.
+  It also accepts `extra_float_digits` and ignores it. It refuses any
+  other parameter at connect with `unsupported startup parameter`, for
+  example `?options=-c statement_timeout=5000` in the URL, or
+  `server_settings={"jit": "off"}` in asyncpg. Use `SET LOCAL` in the
+  transaction instead.
+
+Run each of these over `DATABASE_URL_DIRECT`, or use the
+transaction-scoped form. A migration tool and a job queue that listens
+both read `DATABASE_URL_DIRECT`. This app's `migrations/env.py` does.
+
+Each role has a cap on the **server sessions** it holds. The cap does not
+count the connections your app opens:
+
+| Limit | With a pooler | Without a pooler |
+|---|---|---|
+| Write role, server sessions through the pooler | 5 | — |
+| Write role, server sessions in all | 15 | 40 |
+| Read-only role, server sessions | 5 | 10 |
+| Connections per role to the pooler | 100 | — |
+
+Through the pooler, a transaction waits for a free session when all 5 are
+busy, so keep your transactions short. Keep the pool that uses
+`DATABASE_URL_DIRECT` at 10 connections or fewer. Your direct sessions
+and your pooled ones share the write role's 15, so a larger direct pool
+leaves your own pooled queries waiting.
 
 ### alembic.ini
 
@@ -153,9 +224,11 @@ from sqlalchemy import create_engine
 
 
 def _url() -> str:
-    return os.environ["DATABASE_URL"].replace(
-        "postgresql://", "postgresql+psycopg://", 1
-    )
+    # Migrations dial the database server directly: DATABASE_URL can go
+    # through a transaction pooler, which drops session state. A channel
+    # whose database has no pooler gets the same value in both variables.
+    url = os.environ.get("DATABASE_URL_DIRECT") or os.environ["DATABASE_URL"]
+    return url.replace("postgresql://", "postgresql+psycopg://", 1)
 
 
 def run_migrations_online() -> None:
@@ -343,7 +416,7 @@ ship because they are in the commit. They run because the container's start
 command runs `alembic upgrade head` before it starts the server:
 
 ```dockerfile
-CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app:app --host 0.0.0.0 --port $XHOST_HTTP_PORT"]
+CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app:app --host 0.0.0.0 --port $XHOSTD_HTTP_PORT"]
 ```
 
 The start command is the *only* correct place for `alembic upgrade head`.
@@ -432,6 +505,11 @@ table, which then existed and held the note.
 
 ### Restore the database
 
+**Database restore is temporarily unavailable.** xhostd refuses every
+`restore_channel_db` call with `restore_unavailable` while it changes how a
+restore runs to make it safer. For help with a restore, contact support.
+This section shows the restore as it works when it returns.
+
 Add a second note, *after* the platform takes that newer snapshot:
 
 ```bash
@@ -441,20 +519,14 @@ $ curl -sS -X POST https://recipe-docker-pg-docs.xhostd.app/notes \
 {"id":2}
 ```
 
-xhostd refuses a restore of **`prod`** unless the app's environment holds
-`XHOST_ALLOW_PROD_RESTORE=1`. The refusal reads `prod_restore_blocked`, and
-it is the guard at work, not a fault. Keep the guard until you are sure that
-you want the restore. A restore saves no snapshot of the state that it
-replaces, because the platform saves a snapshot before a deploy only. The
-rows that the restore overwrites are thus not in the snapshot list after it.
-You set the variable to confirm that you accept this:
+A restore of **`prod`** is a protected action. An agent credential gets 403
+`protected_action` until the app owner turns agent access on in the console,
+and the refusal is the guard at work, not a fault. Ask the owner before you
+restore. A restore saves no snapshot of the state that it replaces, because
+the platform saves a snapshot before a deploy only. The rows that the restore
+overwrites are thus not in the snapshot list after it.
 
-```text
-set_env(app_name="recipe-docker-pg",
-        key="XHOST_ALLOW_PROD_RESTORE", value="1")
-```
-
-Then restore the channel to the snapshot from immediately before the second
+Restore the channel to the snapshot from immediately before the second
 deploy. That snapshot holds note 1 and not note 2.
 
 ```text
@@ -526,8 +598,7 @@ def upgrade() -> None:
 Only `postgis` is installable. `postgis_raster`, `postgis_topology`,
 `postgis_sfcgal`, and the tiger geocoder stay untrusted. `spatial_ref_sys`
 is read-only for your role, with every EPSG code present. A snapshot
-restore, a move, and an export all carry a PostGIS database. The Postgres
-reference page has the details.
+restore, a move, and an export all carry a PostGIS database.
 
 ## When it goes wrong
 
@@ -624,6 +695,77 @@ Keep a deploy-time migration short, and do not let it block. Use
 with a default in place of a rewrite of the rows. Move a long backfill out of
 the deploy path. Ship the schema change first, then run the backfill as its
 own step after the app is live.
+
+### An UNLOGGED table is refused
+
+xhost refuses every UNLOGGED table and sequence. A statement that makes one
+fails, and Postgres rolls the statement back:
+
+```text
+ERROR:  UNLOGGED tables and sequences are not supported on xhost
+DETAIL:  public.cache is UNLOGGED.
+HINT:  Remove UNLOGGED from the statement. xhost backs up, restores, and moves only logged data; see docs.xhostd.com/postgres. In Rails, remove create_unlogged_tables from config/environments.
+```
+
+Why: Postgres writes no write-ahead log for the rows of an UNLOGGED table.
+xhost backs up your database from that log, and it moves your database
+between servers with logical replication, which carries none of those rows
+either. A restore or a move would come back without them, and a crash of the
+database server empties the table.
+
+The refusal covers each statement that leaves a table or a sequence
+UNLOGGED: `CREATE UNLOGGED TABLE`, `CREATE UNLOGGED TABLE … AS`,
+`SELECT … INTO UNLOGGED`, `ALTER TABLE … SET UNLOGGED`,
+`CREATE UNLOGGED SEQUENCE`, and `ALTER SEQUENCE … SET UNLOGGED`. A temporary
+table is not affected.
+
+To fix a refused statement, remove the `UNLOGGED` keyword. A logged table
+accepts the same queries, and it survives a restore and a move. A framework
+can add the keyword for you:
+
+- **Alembic and SQLAlchemy.** The keyword comes from `prefixes=["UNLOGGED"]`
+  on `op.create_table` or on a `Table`. Remove it.
+- **Rails.** Remove the line
+  `ActiveRecord::ConnectionAdapters::PostgreSQLAdapter.create_unlogged_tables = true`
+  from each file in `config/environments/`.
+
+A database made before xhost refused UNLOGGED tables can still hold one. The
+table keeps its rows. Until you make it logged, xhost cannot move the
+database to another server, and the table takes no change that leaves it
+UNLOGGED, such as `ADD COLUMN` or `CREATE INDEX`. Make it logged from a
+migration of its own:
+
+```sql
+ALTER TABLE public.cache SET LOGGED;
+```
+
+The statement rewrites the table. The sequences the table owns, such as the
+one behind a `serial` column, become logged with it. A sequence that no
+table owns needs its own statement:
+
+```sql
+ALTER SEQUENCE public.ticket SET LOGGED;
+```
+
+To find what is left, run this query. An empty result means no UNLOGGED
+table or sequence remains:
+
+```sql
+SELECT n.nspname, c.relname, c.relkind
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE c.relpersistence = 'u'
+  AND c.relkind IN ('r', 'p', 'S')
+  AND n.nspname NOT LIKE 'pg\_%'
+  AND n.nspname <> 'information_schema';
+```
+
+The refusal comes from an extension, `xhost_guard`, that xhost installs in
+your database. `\dx` in psql lists it, and your role cannot drop or disable
+it. The console's dump download and an export leave it out. A `pg_dump` that
+you run yourself contains a `CREATE EXTENSION IF NOT EXISTS xhost_guard`
+line, which a Postgres server outside xhost cannot load. For such a server,
+pass `--exclude-extension=xhost_guard`, which needs `pg_dump` 17 or later.
 
 ### 404 and 502 from the hostname mean different things
 

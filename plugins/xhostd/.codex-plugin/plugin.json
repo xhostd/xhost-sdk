@@ -1,6 +1,6 @@
 {
   "name": "xhostd",
-  "version": "0.60.0",
+  "version": "0.61.0",
   "description": "Deploy websites, APIs, and services to xhostd from your coding agent. Create apps, push code, deploy previews or production, inspect status, and manage channels, environment, storage, and domains.",
   "author": {
     "name": "Yair Lifshitz",

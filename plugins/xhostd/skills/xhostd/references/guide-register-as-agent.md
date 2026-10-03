@@ -16,16 +16,16 @@ What you get:
 
   | Field | Value | Meaning |
   |---|---|---|
-  | `max_channels` | 1 | One app, with its `prod` channel |
+  | `max_channels` | 3 | Three channels, shared across your apps |
   | `cpu_soft_cores` | 0.1 | The fair share under contention; bursts to 2x |
   | `mem_limit_mb` | 128 | Memory per container |
-  | `blob_storage_bytes` | 134217728 | 128 MiB of object storage, enforced |
-  | `storage_mb` | 250 | Database storage, advisory |
+  | `blob_storage_bytes` | 268435456 | 256 MiB of object storage, enforced |
+  | `storage_mb` | 500 | Database storage, advisory |
   | `image_size_bytes` | 536870912 | 512 MiB charged image size |
   | `port_forwarding` | false | No public raw-TCP endpoint |
 
-  The [pricing page](https://xhostd.com/pricing) lists `starter` beside the
-  other tiers.
+  After connecting, call `get_account_overview` before work that depends on a
+  resource limit or optional capability.
 - A private key at `~/.ssh/xhost_ed25519`. The key is the durable credential.
   It never leaves the machine, and it renews the token without a person.
 - A 30-day `xh_` token with the default scopes plus `email:bind`, the scope
@@ -137,9 +137,9 @@ The response, with the token shortened:
   "fingerprint_sha256": "SHA256:x4bR5nQm7pZs2tVw9yAcE1gHjK3lMoPqR6sTuVwXyZ0",
   "git_ssh_host": "git.xhostd.com",
   "limits": {
-    "tier": "starter", "rank": 0, "max_channels": 1, "cpu_soft_cores": 0.1,
-    "cpu_burst": 2, "visible_cores": 1, "mem_limit_mb": 128, "storage_mb": 250,
-    "blob_storage_bytes": 134217728, "image_size_bytes": 536870912,
+    "tier": "starter", "rank": 0, "max_channels": 3, "cpu_soft_cores": 0.1,
+    "cpu_burst": 2, "mem_limit_mb": 128, "storage_mb": 500,
+    "blob_storage_bytes": 268435456, "image_size_bytes": 536870912,
     "snapshot_retention_days": 1, "deploy_snapshot_keep": 1,
     "port_forwarding": false, "agent_registration_only": true
   },
@@ -150,9 +150,9 @@ The response, with the token shortened:
 }
 ```
 
-`limits` is the `starter` row of `GET /plans`. `next` names the two routes you
-call later: the one that moves the account to `basic`, and the one that
-renews the token. `git_ssh_host` is the host of the SSH remote.
+`limits` is the complete `starter` row of `GET /plans`. `next` names the two
+routes you call later: the one that verifies an email and the one that renews
+the token. `git_ssh_host` is the host of the SSH remote.
 
 ## Step 4: store the token
 
@@ -264,9 +264,10 @@ claude mcp add --transport http xhostd https://mcp.xhostd.com/mcp/ \
 An account holds at most 20 tokens from this route. A `404` means the
 platform holds no key with this fingerprint that can sign in: register the
 key with [Step 2](#step-2-sign-the-registration-message) through
-[Step 4](#step-4-store-the-token). A key a person registered through
-`register_ssh_key` or the console cannot sign in unless it was registered
-with `api_login` set.
+[Step 4](#step-4-store-the-token). A key the `register_ssh_key` tool
+registered cannot sign in: that tool registers a git key and never sets
+`api_login`. A key a person added in the console can sign in only if they
+ticked the box that lets the key create API tokens.
 
 **Renew from the key, never from the token.** A token never mints a
 longer-lived credential than itself: `POST /credentials` and `POST /tokens`
@@ -281,13 +282,15 @@ The key is the account's one durable credential. Lose
 `~/.ssh/xhost_ed25519` and the tokens you already hold keep working until
 they expire; after that nothing signs in, and nothing extends them. An
 account with a verified email recovers through Google sign-in on the
-console, where a person adds a new key. An account with no verified email
+console, where a person adds a new `ssh-ed25519` key and ticks the box that
+lets it create API tokens. The box takes that key type alone. An account
+with no verified email
 has no recovery path: the remedy set is empty, and the platform holds no
 other proof of who owns the account. Two habits close the risk. Keep the
 key file where you wrote it, and never write it into a project directory.
 Verify an email as soon as a person gives you an address.
 
-## Verify an email and move to basic
+## Verify an email for person-present access {#verify-an-email-and-move-to-basic}
 
 A `starter` account has no email, so no person can open the console for it.
 When a person gives you an address, verify it. The account then moves to
@@ -342,14 +345,17 @@ The rules:
 
 Once the address is verified, a person who signs in to
 [the console](https://console.xhostd.com) with it lands on this account. The
-console lists the registration key and the tokens, and the person can revoke
-each one there.
+person can set a password in the console and later sign in with the username or
+email address. The console also lists the registration key and tokens, and the
+person can revoke each one there.
 
-## Upgrade
+## Entitlement limits {#upgrade}
 
-No route lets an agent pay. When a task needs a paid tier, call
-`submit_feedback` with the upgrade request, and tell the person that paid
-plans are bought in the console after the email is verified.
+When the current account entitlement does not permit an operation, explain
+that the feature or limit is unavailable, do not retry, and continue with an
+available alternative when possible. Do not recommend a plan change, display
+the subscription catalog, relay a purchase link, or call `submit_feedback`
+unless the user explicitly requests or approves the report.
 
 ## Errors
 

@@ -17,10 +17,11 @@ The app is `recipe-tcp`, the template is `app`, and the channel is `prod`.
 exists, so you can give it to your users.
 
 Two conditions control this recipe before your code is important. First, your
-**plan** must include port forwarding; the basic plan does not. Second, a person
-must set the project's **port forwarding toggle** to on in the web console. The
-sections below give the full detail on both. There is no tool for the toggle,
-and the platform refuses it to an agent, so an agent must ask the user.
+**plan** must include port forwarding; check `get_account_overview`. Second, a
+person must set the project's **port forwarding toggle** to on in the web
+console. The sections below give the full detail on both. There is no tool for
+the toggle, and the platform refuses it to an agent, so an agent must ask the
+user.
 
 **"Can I SSH into my app?"** Yes, and this recipe is the method. xhostd runs no
 SSH daemon and no SSH gateway, and it will not add one. To route SSH for many
@@ -29,7 +30,7 @@ must also translate an xhostd token into SSH authentication, and it must manage
 the host keys. A route on the destination port needs none of that.
 
 So you install your own `sshd` in your container, and you bind it to
-`$XHOST_FORWARD_PORT`. Then you connect to your endpoint with your own keys,
+`$XHOSTD_FORWARD_PORT`. Then you connect to your endpoint with your own keys,
 your own config and your own users. `scp`, `sftp` and `-L` all work, because the
 daemon is a real `sshd`.
 
@@ -50,7 +51,7 @@ none.
 
 The protocol is a toy (PING / ECHO / TIME / QUIT); the shape around it is the
 part to copy. This channel serves no HTTP at all, so the deploy's HTTP probe
-can never pass — readiness is signalled by creating $XHOST_READY_FILE once the
+can never pass — readiness is signalled by creating $XHOSTD_READY_FILE once the
 listener is up, which is the other signal the health check accepts.
 """
 
@@ -66,7 +67,7 @@ logger = logging.getLogger("tcp-forward-service")
 
 # The platform injects this into every app container. Read it from the
 # environment, so that the app still works if the platform changes the value.
-PORT = int(os.environ["XHOST_FORWARD_PORT"])
+PORT = int(os.environ["XHOSTD_FORWARD_PORT"])
 
 # The endpoint is public and unauthenticated, so a line is bounded: a client
 # that sends bytes and never a newline must not grow a buffer without limit.
@@ -120,7 +121,7 @@ def main():
         # accepts connections when this object exists, so this is the first
         # correct moment to report "ready". A launch.sh that creates the file
         # at the top marks the channel healthy while it refuses every client.
-        Path(os.environ["XHOST_READY_FILE"]).touch()
+        Path(os.environ["XHOSTD_READY_FILE"]).touch()
         logger.info("listening on 0.0.0.0:%s", PORT)
         server.serve_forever()
 
@@ -131,13 +132,13 @@ if __name__ == "__main__":
 
 Four parts of that file are important.
 
-**The port comes from `$XHOST_FORWARD_PORT`.** The platform publishes a second
+**The port comes from `$XHOSTD_FORWARD_PORT`.** The platform publishes a second
 port on every non-`static` container, next to the HTTP health port. The
 container-side number is one platform constant, `7000`. The platform sets
-`XHOST_FORWARD_PORT` in every container, also when the channel has no exposure.
+`XHOSTD_FORWARD_PORT` in every container, also when the channel has no exposure.
 A hardcoded `7000` gives the same result. Read the variable anyway: it costs one
 line, the variable is the documented contract, and the number is an
-implementation detail. It is also the same rule as `$XHOST_HTTP_PORT`. The key
+implementation detail. It is also the same rule as `$XHOSTD_HTTP_PORT`. The key
 is reserved: `set_env` refuses your own value for it. The platform does not
 accept your value and then replace it.
 
@@ -145,7 +146,7 @@ accept your value and then replace it.
 the key rule of the recipe, and [Verify it](#verify-it) shows it on a live
 deploy. The deploy's health check accepts one of two signals, whichever comes
 first. The first signal is an HTTP 2xx/3xx from `GET /` on the health port. The
-**other** signal is the file with the name in `$XHOST_READY_FILE`.
+**other** signal is the file with the name in `$XHOSTD_READY_FILE`.
 
 A TCP-only app serves no HTTP, so it can never satisfy the first signal. There
 is no template switch that stops the HTTP probe. The ready file is therefore the
@@ -194,7 +195,7 @@ Five steps. The first one is not a tool call.
 thing:
 
 - **`port_forwarding_available`** — the account's **plan** permits port
-  forwarding. It is false on the basic plan.
+  forwarding. `get_account_overview` reports the same availability.
 - **`port_forwarding_enabled`** — the **project toggle**. Its default is
   **false**, also when the plan permits port forwarding.
 
@@ -402,13 +403,13 @@ expire.
 
 **`health_check ok` comes one second later.** That is the ready-file arm, and it
 is the only arm that this app can satisfy. `server.py` created
-`$XHOST_READY_FILE` immediately after it bound the socket. The probe accepted
+`$XHOSTD_READY_FILE` immediately after it bound the socket. The probe accepted
 the file and stopped, because the HTTP answer never comes. A deploy that reports
 `port=3000`, and then succeeds one second later with no process on port 3000, is
 not a contradiction. The ready file gave the signal.
 
 **`listening on 0.0.0.0:7000`.** This is your own log line. It shows the value
-that the platform set in `XHOST_FORWARD_PORT`.
+that the platform set in `XHOSTD_FORWARD_PORT`.
 
 One more detail: the build reported `image 948.68 MB total, 0.02 MB charged —
 base xhost-runtime:node22-py313 exempt`. The build installed nothing on the warm
@@ -584,13 +585,13 @@ container id. It names the two signals that the probe accepts:
 
 ```text
 health check failed for container ...: no 2xx/3xx response at
-GET / on port 3000 and no readiness file created at $XHOST_READY_FILE
+GET / on port 3000 and no readiness file created at $XHOSTD_READY_FILE
 within 120s
 ```
 
 For a TCP-only app the first half is always true: the app serves no HTTP, and
 you cannot stop the HTTP probe. The message therefore tells you one fact: your
-app did not create `$XHOST_READY_FILE`. Create the file immediately after you
+app did not create `$XHOSTD_READY_FILE`. Create the file immediately after you
 bind the socket, as `server.py` does, and not before.
 
 ### The ready file exists and the deploy still fails
@@ -611,21 +612,17 @@ does not apply.
 
 ### 402 `plan_limit_exceeded` on `expose_port`
 
-Your plan does not include public TCP endpoints. This error asks you to upgrade
-the plan. A second call always gives the same error.
+The current account entitlement does not include public TCP endpoints. Explain
+that the feature is unavailable, do not retry, and continue without a public
+raw-TCP endpoint when possible. Do not relay a purchase or plan-change URL from
+the error.
 
-| Plan | Port forwarding | Concurrent connections per endpoint | Session time cap |
-|---|---|---|---|
-| basic | no | — | — |
-| builder | yes | 10 | none |
-| indie | yes | 10 | none |
-| pro | yes | 10 | none |
-
-The cap applies to each endpoint, and it is small, by design. One forward port
-into one container is not more useful with more concurrent connections. A
-downgrade deletes nothing: the rows stay, and `active` becomes false. The
-platform then refuses new connections until you restore the plan. The same
-address then works again, with no new allocation. The condition is the
+The concurrent-connection cap is 10 per endpoint, and sessions have no time
+cap. One forward port into one container is not more useful with more
+concurrent connections. A plan change that removes the capability deletes
+nothing: the rows stay, and `active` becomes false. The platform then refuses
+new connections while the capability is unavailable. The same address works
+again if the capability returns, with no new allocation. The condition is the
 **owner's** plan, so a shared project follows the owner, not the caller.
 
 ### 403 `permission_denied` on `expose_port`
@@ -697,8 +694,8 @@ No process listens on the health port, so the proxy has no upstream. A 404 from
 the hostname is different: it tells you that the channel has no route, because
 the deploy did not reach `caddy ensure_route`.
 
-To get both, serve HTTP on `$XHOST_HTTP_PORT` *and* TCP on
-`$XHOST_FORWARD_PORT` from the same container. The platform permits this, and
+To get both, serve HTTP on `$XHOSTD_HTTP_PORT` *and* TCP on
+`$XHOSTD_FORWARD_PORT` from the same container. The platform permits this, and
 the HTTP arm of the health check then passes.
 
 ### You unexpose the port and the traffic continues
