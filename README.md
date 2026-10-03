@@ -5,15 +5,15 @@ Claude Code and Codex plugin for [xhostd](https://xhostd.com) — deploy applica
 ## Install
 
 ```
-/plugin marketplace add xhostd/xhost-sdk
-/plugin install xhost@xhost-sdk
+/plugin marketplace add xhostd/xhostd-sdk
+/plugin install xhostd@xhostd-sdk
 ```
 
-Installing the plugin registers both the xhost skill and the remote MCP server (`https://mcp.xhostd.com/mcp/`).
+Installing the plugin registers both the xhostd skill and the remote MCP server (`https://mcp.xhostd.com/mcp/`).
 
 ## Codex
 
-This repository also includes the Codex plugin manifest at `plugins/xhost/.codex-plugin/plugin.json`, its OAuth MCP declaration at `plugins/xhost/.mcp.json`, and a repo-local marketplace at `.agents/plugins/marketplace.json`. The MCP server uses browser-based Google OAuth when a person is present. An agent with no browser registers its own account with an SSH key and adds the server with a bearer header instead; read `plugins/xhost/skills/xhost/references/guide-register-as-agent.md`.
+This repository also includes the Codex plugin manifest at `plugins/xhostd/.codex-plugin/plugin.json`, its OAuth MCP declaration at `plugins/xhostd/.mcp.json`, and a repo-local marketplace at `.agents/plugins/marketplace.json`. The MCP server uses browser-based Google OAuth when a person is present. An agent with no browser registers its own account with an SSH key and adds the server with a bearer header instead; read `plugins/xhostd/skills/xhostd/references/guide-register-as-agent.md`.
 
 After installing, reload plugins in your current session:
 
@@ -23,11 +23,11 @@ After installing, reload plugins in your current session:
 
 ## Connect
 
-Run `/mcp`, select **xhost**, and choose **Authenticate**. Your browser opens for Google sign-in — no token needed when a person is present.
+Run `/mcp`, select **xhostd**, and choose **Authenticate**. Your browser opens for Google sign-in — no token needed when a person is present.
 
 ## Usage
 
-Just use `/xhost` — it handles everything:
+Just use `/xhostd` — it handles everything:
 
 ```
 "deploy my website"          → signs up, creates app, pushes, deploys
@@ -38,12 +38,12 @@ Just use `/xhost` — it handles everything:
 Or invoke it explicitly:
 
 ```
-/xhost
+/xhostd
 ```
 
-The single `/xhost` skill handles account setup, app creation, deploys, previews, and status checks. Claude figures out what you need from context.
+The single `/xhostd` skill handles account setup, app creation, deploys, previews, and status checks. Claude figures out what you need from context.
 
-In Codex, describe the task normally or mention the xhost skill; slash-command syntax is client-specific.
+In Codex, describe the task normally or mention the xhostd skill; slash-command syntax is client-specific.
 
 ## Example use cases
 
@@ -61,12 +61,12 @@ In Codex, describe the task normally or mention the xhost skill; slash-command s
 
 ## Recipes
 
-<https://docs.xhostd.com/guides> holds one complete recipe for each shape of app: every file, the exact calls, and the failure modes of that shape. Read the recipe for your shape before you write the code. The plugin carries the same recipes offline, under `plugins/xhost/skills/xhost/references/`.
+<https://docs.xhostd.com/guides> holds one complete recipe for each shape of app: every file, the exact calls, and the failure modes of that shape. Read the recipe for your shape before you write the code. The plugin carries the same recipes offline, under `plugins/xhostd/skills/xhostd/references/`.
 
 ## How it works
 
 1. You push code to xhostd's git server
-2. You trigger a deploy (explicitly, via `/xhost` or the API)
+2. You trigger a deploy (explicitly, via `/xhostd` or the API)
 3. xhostd runs your `install.sh` (install the dependencies) then `launch.sh` (start the app on `$XHOST_HTTP_PORT`)
 4. Your app is live over HTTPS with a wildcard cert
 

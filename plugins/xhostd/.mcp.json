@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "xhost": {
+    "xhostd": {
       "type": "http",
       "url": "https://mcp.xhostd.com/mcp/"
     }

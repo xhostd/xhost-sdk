@@ -4,7 +4,7 @@ This walks through what an agent does, end-to-end, when a non-technical user say
 
 ## 0. Prerequisites
 
-The xhostd plugin is installed (Claude Code) or the connector named `xhost` is enabled (claude.ai). The `mcp__xhost__*` tools are available. The user has authenticated once via OAuth — if not, point them to `/mcp` → xhost → Authenticate (Claude Code) or the connector's Connect button (claude.ai). They will sign in with Google and, on the first sign-in only, pick a **username** (lowercase letters, digits, hyphens; 1–40 chars; cannot start or end with a hyphen). That username becomes part of every public URL. With no person present, the agent registers its own account with an SSH key — `guide-register-as-agent.md`.
+The xhostd plugin is installed (Claude Code) or the connector named `xhostd` is enabled (claude.ai). The `mcp__xhostd__*` tools are available. The user has authenticated once via OAuth — if not, point them to `/mcp` → xhostd → Authenticate (Claude Code) or the connector's Connect button (claude.ai). They will sign in with Google and, on the first sign-in only, pick a **username** (lowercase letters, digits, hyphens; 1–40 chars; cannot start or end with a hyphen). That username becomes part of every public URL. With no person present, the agent registers its own account with an SSH key — `guide-register-as-agent.md`.
 
 ## 1. Decide on a name
 
@@ -13,7 +13,7 @@ Pick a DNS-label app name from the user's description — e.g. `lisbon-coffee`. 
 ## 2. Create the app
 
 ```
-mcp__xhost__create_app(name="lisbon-coffee", template="static")
+mcp__xhostd__create_app(name="lisbon-coffee", template="static")
 ```
 
 Use `template="static"` for plain HTML/CSS/JS (served directly). Use `template="app"` if the user wants a dynamic backend — that template runs `install.sh` then `launch.sh` in a runtime with Node 22, Python 3.13, and common build tools. If the project is a single-page app, its server must serve `index.html` for the client-side routes — the platform proxies every path straight through and rewrites nothing.
@@ -50,26 +50,26 @@ The full step list is in **Pushing code with git** in SKILL.md. Pick the path fr
 
 ```
 ssh-keygen -t ed25519 -N "" -f ~/.ssh/xhost_ed25519   # only if the file is absent
-# then: mcp__xhost__register_ssh_key(public_key=<content of ~/.ssh/xhost_ed25519.pub>, label="this machine")
+# then: mcp__xhostd__register_ssh_key(public_key=<content of ~/.ssh/xhost_ed25519.pub>, label="this machine")
 git init && git add -A && git commit -m "initial site"
-git remote add xhost-ssh "git@git.xhostd.com:alice/lisbon-coffee.git"
-GIT_SSH_COMMAND="ssh -i ~/.ssh/xhost_ed25519 -o IdentitiesOnly=yes" git push xhost-ssh HEAD:master
+git remote add xhostd-ssh "git@git.xhostd.com:alice/lisbon-coffee.git"
+GIT_SSH_COMMAND="ssh -i ~/.ssh/xhost_ed25519 -o IdentitiesOnly=yes" git push xhostd-ssh HEAD:master
 ```
 
 An SSH push needs no token — the `repo_url` from step 2 gives the username and the app name. `-o IdentitiesOnly=yes` stops ssh from offering another key it finds first.
 
 Always use exactly the path `~/.ssh/xhost_ed25519` — never the project directory, and never a per-project, per-app or per-tool suffix. It sits in `$HOME`, so every Claude Code session, IDE window and project on the machine reuses the one key instead of registering another.
 
-**HTTPS fallback:** where outbound port 22 is blocked, or the SSH push fails, call `mcp__xhost__get_credentials` for a 30-day token — one `xh_` secret that is the git password, the Postgres password and the platform API bearer at once — put it in the **password** field of the remote URL (`repo_url` came back in step 2), and push:
+**HTTPS fallback:** where outbound port 22 is blocked, or the SSH push fails, call `mcp__xhostd__get_credentials` for a 30-day token — one `xh_` secret that is the git password, the Postgres password and the platform API bearer at once — put it in the **password** field of the remote URL (`repo_url` came back in step 2), and push:
 
 ```
-git remote add xhost "https://alice:<token>@git.xhostd.com/alice/lisbon-coffee.git"
-git push xhost HEAD:master
+git remote add xhostd "https://alice:<token>@git.xhostd.com/alice/lisbon-coffee.git"
+git push xhostd HEAD:master
 ```
 
 `HEAD:master` on either transport, because prod is bound to `branch:master` while a fresh `git init` defaults to `main`. Never write the token into a file the user might commit. **Pushing stores the code; it does not deploy** — that is step 4.
 
-**Fallback, one case only:** when git is not available on the machine you are working on — a runtime with no shell, such as the claude.ai connector — use `mcp__xhost__commit_files(app_name, message, files, ref="master")` instead. `files` is a `{path: content-or-null}` map: a string upserts, `null` deletes, and a path you don't name is left alone, so send only what is changing. It returns `{"sha": "abc123…"}`, which is what you then deploy. On GitHub-connected apps it is refused — push to GitHub instead. Worked example: <https://docs.xhostd.com/guides/recipes-commit-files>.
+**Fallback, one case only:** when git is not available on the machine you are working on — a runtime with no shell, such as the claude.ai connector — use `mcp__xhostd__commit_files(app_name, message, files, ref="master")` instead. `files` is a `{path: content-or-null}` map: a string upserts, `null` deletes, and a path you don't name is left alone, so send only what is changing. It returns `{"sha": "abc123…"}`, which is what you then deploy. On GitHub-connected apps it is refused — push to GitHub instead. Worked example: <https://docs.xhostd.com/guides/recipes-commit-files>.
 
 For an `app`-template project the push is the same; the repo needs `install.sh` (optional) and `launch.sh` (required) at its root. The deploy only succeeds if the app signals readiness within 120s, and there are **two ways to do that** — whichever comes first. So the process must:
 
@@ -97,7 +97,7 @@ exec gunicorn --bind "0.0.0.0:$XHOST_HTTP_PORT" app:app
 ## 4. Deploy
 
 ```
-mcp__xhost__deploy(
+mcp__xhostd__deploy(
   app_name="lisbon-coffee",
   channel="prod",
   ref="master",
@@ -109,42 +109,42 @@ Returns `{"deploy_id": "d…", "channel_id": "c0a1…", "status": "queued"}`. De
 ## 5. Watch the build
 
 ```
-mcp__xhost__get_deploy_log(app_name="lisbon-coffee", channel="prod", deploy_id="d…")
+mcp__xhostd__get_deploy_log(app_name="lisbon-coffee", channel="prod", deploy_id="d…")
 ```
 
 The first line of the reply states the outcome: `deploy <id> — <status> (sha <sha>)`, with status one of `queued`, `running`, `success`, or `failed`. Read the status from that header, not from the log text. Poll while the status is `queued` or `running`; on `failed` the reason is in the log tail. `static` deploys take a few seconds; the first `app`-template deploy takes 30–90 seconds because `install.sh` runs. The channel's `pending_deploy` field in `get_app` also shows the in-flight deploy (`null` once it finishes).
 
 ## 6. Hand the user the URL
 
-Read `hostname` from the prod channel (it was in step 2's response, and `mcp__xhost__list_channels` or `mcp__xhost__get_app` will return it later). Tell the user:
+Read `hostname` from the prod channel (it was in step 2's response, and `mcp__xhostd__list_channels` or `mcp__xhostd__get_app` will return it later). Tell the user:
 
 > Live at https://lisbon-coffee-alice.xhostd.app
 
 ## 7. Iterate
 
-For each follow-up change — "add a section for tea shops", "fix the broken link" — edit the files in the checkout, `git commit`, `git push xhost HEAD:master`, then `deploy` with `ref="master"`. The same `prod` channel is targeted, and the remote is already configured, so a follow-up is a couple of shell commands and one tool call. This is where the standard path pays: the push carries only the lines that changed, so the tenth edit costs about what the first one did — where a `commit_files` changeset carries an anchor and the new text on every edit, and a whole file whenever you send one. On the fallback path (no shell), that is still the loop: `commit_files` — `edits` or `patches` for a file that already exists, `files` for a new one — then `deploy` with the sha it returns.
+For each follow-up change — "add a section for tea shops", "fix the broken link" — edit the files in the checkout, `git commit`, `git push xhostd HEAD:master`, then `deploy` with `ref="master"`. The same `prod` channel is targeted, and the remote is already configured, so a follow-up is a couple of shell commands and one tool call. This is where the standard path pays: the push carries only the lines that changed, so the tenth edit costs about what the first one did — where a `commit_files` changeset carries an anchor and the new text on every edit, and a whole file whenever you send one. On the fallback path (no shell), that is still the loop: `commit_files` — `edits` or `patches` for a file that already exists, `files` for a new one — then `deploy` with the sha it returns.
 
 To preview a change without touching production:
 
 ```
-mcp__xhost__create_channel(app_name="lisbon-coffee", name="draft", git_ref_binding="branch:draft")
-git push xhost HEAD:draft
-mcp__xhost__deploy(app_name="lisbon-coffee", channel="draft", ref="draft")
+mcp__xhostd__create_channel(app_name="lisbon-coffee", name="draft", git_ref_binding="branch:draft")
+git push xhostd HEAD:draft
+mcp__xhostd__deploy(app_name="lisbon-coffee", channel="draft", ref="draft")
 ```
 
 The preview is live at `https://draft-lisbon-coffee-alice.xhostd.app`.
 
 ## 8. Optional extras
 
-- **Env vars & secrets:** `mcp__xhost__set_env(app_name, key="STRIPE_KEY", value="sk_…", secret=True)` — mark credentials `secret=True` (values never readable back through MCP; the reveal is a protected action that answers `protected_action` to an agent credential, and it is audit-logged), add `channel="staging"` for a per-channel override that wins over the app default at deploy time. `mcp__xhost__list_env(app_name, channel=…)` shows the resolved view. Every non-static channel automatically has `DATABASE_URL` for its own Postgres database; don't set it. A static channel has no database and no `DATABASE_URL`.
-- **Custom domain:** `mcp__xhost__add_custom_domain(app_name, channel, domain)` returns an `instructions` field with the exact TXT + CNAME/A records the user needs to add at their registrar — relay it verbatim. After they add the records, call `mcp__xhost__verify_custom_domain` with the same args. HTTPS works automatically once verified.
+- **Env vars & secrets:** `mcp__xhostd__set_env(app_name, key="STRIPE_KEY", value="sk_…", secret=True)` — mark credentials `secret=True` (values never readable back through MCP; the reveal is a protected action that answers `protected_action` to an agent credential, and it is audit-logged), add `channel="staging"` for a per-channel override that wins over the app default at deploy time. `mcp__xhostd__list_env(app_name, channel=…)` shows the resolved view. Every non-static channel automatically has `DATABASE_URL` for its own Postgres database; don't set it. A static channel has no database and no `DATABASE_URL`.
+- **Custom domain:** `mcp__xhostd__add_custom_domain(app_name, channel, domain)` returns an `instructions` field with the exact TXT + CNAME/A records the user needs to add at their registrar — relay it verbatim. After they add the records, call `mcp__xhostd__verify_custom_domain` with the same args. HTTPS works automatically once verified.
 - **Google sign-in for parts of the site:** zero-config — no tool to call. `/xhost-auth/*` works on every channel. After sign-in the gateway sets a signed identity cookie `__Host-xhost_id` (an RS256 JWT) on the channel host; the app verifies it against the JWKS at `https://auth.xhostd.com/xhost-auth/jwks` (pin `RS256`, check `iss`/`aud`/`exp`) and gates its own routes. **xhostd does identity only, never edge gatekeeping — nothing is blocked at the edge, so every route stays public (anonymous visitors get `200`) until your app verifies the cookie and enforces access itself in code.** Send signed-out users to `/xhost-auth/login?return_to=<path>`. `__Host-xhost_id` is a reserved cookie name. Per-stack verify snippets: <https://docs.xhostd.com/oauth>.
 
 ## Troubleshooting
 
-**Tool reports unauthenticated.** Tell the user to run `/mcp` → xhost → Authenticate (Claude Code) or reconnect the connector (claude.ai). On the OAuth path there is no token to set. A registered agent instead re-reads `~/.config/xhostd/token`, or signs in again with its key when the token expired (`guide-register-as-agent.md`).
+**Tool reports unauthenticated.** Tell the user to run `/mcp` → xhostd → Authenticate (Claude Code) or reconnect the connector (claude.ai). On the OAuth path there is no token to set. A registered agent instead re-reads `~/.config/xhostd/token`, or signs in again with its key when the token expired (`guide-register-as-agent.md`).
 
-**"app name is already taken"** — they already own one with that name. Pick a different name or delete the old app with `mcp__xhost__delete_app`.
+**"app name is already taken"** — they already own one with that name. Pick a different name or delete the old app with `mcp__xhostd__delete_app`.
 
 **"invalid app name"** — name violates the DNS-label rules or starts with a reserved prefix.
 
@@ -154,4 +154,4 @@ The preview is live at `https://draft-lisbon-coffee-alice.xhostd.app`.
 
 **Deploy fails right after start / log says `health check failed for container …`** (app template) — neither readiness signal arrived within 120s: `/` didn't return a 2xx on `$XHOST_HTTP_PORT` *and* no file was created at `$XHOST_READY_FILE`. Usual causes: the server bound `localhost` or a hardcoded port instead of `0.0.0.0:$XHOST_HTTP_PORT`; there's no `/` route (an API under `/api` only); the boot was too slow; or `launch.sh` hit `Permission denied` — it runs as the non-root `app` user, so installing anything there, or writing outside `/app`/`$HOME`/`/tmp`, crashes it. Fix the bind/`$XHOST_HTTP_PORT`, add a `/` handler returning 200, or move the install into `install.sh`. If the project has no HTTP surface at all, create `$XHOST_READY_FILE` once its work loop is running instead of adding a listener.
 
-**`git push` succeeded but the deploy is empty / nothing changed** — prod is bound to `branch:master`, but a fresh `git init` defaults to `main`. Push `master` (`git push xhost HEAD:master`) or deploy with `ref` set to your actual branch.
+**`git push` succeeded but the deploy is empty / nothing changed** — prod is bound to `branch:master`, but a fresh `git init` defaults to `main`. Push `master` (`git push xhostd HEAD:master`) or deploy with `ref` set to your actual branch.

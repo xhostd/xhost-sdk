@@ -97,7 +97,7 @@ into the object it already has:
   "autoMode": {
     "allow": [
       "$defaults",
-      "Deploying an xhostd app through the xhost MCP tools is routine work: a deploy ships a commit that is already pushed to the app's own repository, and the previous version stays redeployable with the rewind tool."
+      "Deploying an xhostd app through the xhostd MCP tools is routine work: a deploy ships a commit that is already pushed to the app's own repository, and the previous version stays redeployable with the rewind tool."
     ]
   }
 }
