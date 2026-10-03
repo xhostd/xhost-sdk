@@ -206,7 +206,7 @@ A new xhostd repo is empty, and git reports this. The warning is correct, and it
 is not a fault:
 
 ```bash
-$ git clone https://docs:$XHOST_TOKEN@git.xhostd.com/docs/recipe-worker.git
+$ git clone https://docs:$XHOSTD_TOKEN@git.xhostd.com/docs/recipe-worker.git
 Cloning into 'recipe-worker'...
 warning: You appear to have cloned an empty repository.
 ```
@@ -227,7 +227,7 @@ To https://git.xhostd.com/docs/recipe-worker.git
  * [new branch]      master -> master
 ```
 
-Do not commit or paste the token. `$XHOST_TOKEN` above is the value from
+Do not commit or paste the token. `$XHOSTD_TOKEN` above is the value from
 `get_credentials`. A remote URL with a real token in it stays in `.git/config`,
 in your shell history, and in the output of every `git remote -v`.
 

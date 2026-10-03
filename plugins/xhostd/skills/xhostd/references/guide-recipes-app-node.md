@@ -146,7 +146,7 @@ Put it in the **password** field of the remote URL:
 The warning is correct, and it is not a fault:
 
 ```bash
-$ git clone https://docs:$XHOST_TOKEN@git.xhostd.com/docs/recipe-node.git
+$ git clone https://docs:$XHOSTD_TOKEN@git.xhostd.com/docs/recipe-node.git
 Cloning into 'recipe-node'...
 warning: You appear to have cloned an empty repository.
 ```
@@ -160,7 +160,7 @@ $ git commit -m "express service on the app template"
 $ git push origin master
 ```
 
-Do not commit or paste the token. `$XHOST_TOKEN` above is the value from
+Do not commit or paste the token. `$XHOSTD_TOKEN` above is the value from
 `get_credentials`. A remote URL with a real token in it stays in `.git/config`,
 in your shell history, and in the output of every `git remote -v`.
 
